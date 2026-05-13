@@ -12,10 +12,9 @@ based on protocol documentation, community sources, APK protocol inference, and
 the shared Lovense BLE protocol, but most have not yet been verified on physical
 hardware in this project.
 
-Important truthfulness note: current command success mostly means the local BLE
-stack accepted a write. It should not be treated as proof that hardware physically
-actuated unless the relevant command path receives or infers stronger evidence.
-Tightening this result model is active work.
+Important truthfulness note: command success means the local BLE stack accepted
+a write-without-response unless a stronger stage is explicitly reported. It
+should not be treated as proof that hardware physically actuated.
 
 ## Tested hardware
 
@@ -74,6 +73,29 @@ All commands are ASCII strings terminated with `;`. The plugin currently writes
 without response to avoid queue pressure and BLE stalls. That is transport-level
 behavior, not proof of physical actuation.
 
+## Command result semantics
+
+Lovense API command results keep `ok` for compatibility, but now include a
+truth stage. Typical actuator success looks like:
+
+```json
+{
+  "ok": true,
+  "stage": "transport_write_accepted",
+  "transport": "ble_write_without_response",
+  "hardware_ack": null,
+  "observed_effect": null,
+  "truth_note": "BLE write-without-response completed; device did not acknowledge this command."
+}
+```
+
+That means the local BLE transport accepted the write. It is not a hardware
+acknowledgement and not proof of bodily sensation.
+
+Patterns and ambient mode return `stage: "local_task_scheduled"` when a local task
+is scheduled. Stop returns `stage: "best_effort_stop_attempted"` with per-write
+results.
+
 ### Universal
 
 | Command | Range | Response | Description |
@@ -130,8 +152,8 @@ Tried in order at connection time:
 
 ## Known limitations
 
-- Delivery semantics are still too optimistic. `ok` often means API/transport
-  acceptance rather than hardware-delivered proof.
+- Delivery semantics are explicit transport-stage results, not hardware-delivered
+  proof.
 - Many device mappings are not locally hardware-tested.
 - Heating commands are not implemented.
 - Gen-1 devices may need different characteristic handling.

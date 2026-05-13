@@ -280,7 +280,16 @@ async def api_forget(address: str):
 @app.post("/api/stop")
 async def api_stop_all():
     result = await manager.stop_all()
-    return {"ok": True, "result": result}
+    attempted = len(result)
+    failed = sum(1 for r in result.values() if not r.get("ok"))
+    return {
+        "ok": attempted > 0 and failed == 0,
+        "stage": "best_effort_stop_attempted",
+        "attempted_devices": attempted,
+        "failed_devices": failed,
+        "result": result,
+        "truth_note": "Stop was attempted for connected devices only; per-device results describe transport acceptance, not hardware acknowledgement.",
+    }
 
 
 @app.get("/api/logs")
@@ -488,7 +497,7 @@ All endpoints accept and return JSON. Use POST for commands, GET for status.
 
 - If a device is not connected, commands return `{{"ok": false, "error": "not connected"}}`
 - If the server is unreachable, BLE may have dropped. Check `/status` first.
-- The `stop` command always works if the server is up, even if individual commands fail.
+- The `stop` command is best-effort. Inspect per-device results; transport acceptance is not hardware acknowledgement.
 
 ## Notes
 
@@ -510,19 +519,19 @@ async def legacy_vibrate(intensity: int, duration: float = Query(default=0.0)):
         raise HTTPException(status_code=400, detail="Intensity must be 0-20")
     result = await manager.send_command_all("vibrate", intensity=intensity, duration=duration)
     d = f"{duration}s" if duration > 0 else "indefinite"
-    return {"result": f"Vibrating at {intensity}/20 ({d})", "devices": result}
+    return {"result": f"Vibration command attempted at {intensity}/20 ({d})", "devices": result}
 
 
 @app.post("/stop")
 async def legacy_stop():
     result = await manager.stop_all()
-    return {"result": "Stopped", "devices": result}
+    return {"result": "Stop attempted", "devices": result}
 
 
 @app.post("/preset/{pattern}")
 async def legacy_preset(pattern: str, duration: float = Query(default=10.0)):
     result = await manager.send_command_all("pattern", name=pattern, duration=duration)
-    return {"result": f"Pattern '{pattern}' started ({duration}s)", "devices": result}
+    return {"result": f"Pattern '{pattern}' scheduled/attempted ({duration}s)", "devices": result}
 
 
 @app.get("/status")

@@ -276,13 +276,13 @@ class LovenseDevice(Device):
             # Initialization handshake
             self.connected = True
             await asyncio.sleep(0.3)
-            await self._write("DeviceType;")
+            await self._write("DeviceType;", command="device_type")
             await asyncio.sleep(0.3)
-            await self._write("Battery;")
+            await self._write("Battery;", command="battery")
             await asyncio.sleep(0.2)
-            await self._write("AutoSwith:Off:Off;")  # disable auto-standby
+            await self._write("AutoSwith:Off:Off;", command="auto_switch")  # disable auto-standby
             await asyncio.sleep(0.2)
-            await self._write("Vibrate:0;")           # confirm motor at zero
+            await self._write("Vibrate:0;", command="connect_zero")           # confirm motor at zero
 
             self.emit_event("CONNECTED", f"{self.address} ({self.name})")
             return True
@@ -298,7 +298,7 @@ class LovenseDevice(Device):
 
         if self._accel_streaming:
             try:
-                await self._write("StopMove:1;")
+                await self._write("StopMove:1;", command="disconnect_stop_accel")
             except Exception:
                 pass
             self._accel_streaming = False
@@ -327,15 +327,83 @@ class LovenseDevice(Device):
     # BLE I/O
     # ------------------------------------------------------------------
 
-    async def _write(self, cmd: str) -> bool:
-        """Send ASCII command. Write Without Response to prevent queue exhaustion."""
+    def _write_result(self, *, command: str, cmd: str, ok: bool,
+                      stage: str | None = None, error: str | None = None,
+                      **extra) -> dict:
+        """Describe exactly what a Lovense write result proves.
+
+        Lovense control uses BLE write-without-response. A successful write means
+        the local BLE transport accepted the command. It is not hardware
+        acknowledgement and not proof of physical actuation.
+        """
+        result_stage = stage or ("transport_write_accepted" if ok else "transport_write_failed")
+        attempted_transport = result_stage not in {"device_not_connected", "api_rejected"}
+        result = {
+            "ok": bool(ok),
+            "stage": result_stage,
+            "command": command,
+            "sent": cmd.strip(),
+            "transport": "ble_write_without_response" if attempted_transport else None,
+            "hardware_ack": None,
+            "observed_effect": None,
+        }
+        if not attempted_transport:
+            result["intended_transport"] = "ble_write_without_response"
+        if ok:
+            result["truth_note"] = (
+                "BLE write-without-response completed; device did not acknowledge this command."
+            )
+        elif result_stage == "device_not_connected":
+            result["truth_note"] = (
+                "Device was not connected; no BLE write was attempted and no hardware effect is known."
+            )
+        else:
+            result["truth_note"] = (
+                "BLE write-without-response failed or device was unavailable; no hardware effect is known."
+            )
+            if error:
+                result["error"] = error
+        result.update(extra)
+        return result
+
+    def _local_task_result(self, *, command: str, task: str, **extra) -> dict:
+        """Result for commands that start a local task rather than one hardware write."""
+        result = {
+            "ok": True,
+            "stage": "local_task_scheduled",
+            "command": command,
+            "local_task": task,
+            "transport": None,
+            "intended_transport": "ble_write_without_response",
+            "hardware_ack": None,
+            "observed_effect": None,
+            "truth_note": (
+                "Local task scheduled; future BLE writes are best-effort write-without-response operations and may fail after this API response."
+            ),
+        }
+        result.update(extra)
+        return result
+
+    async def _write(self, cmd: str, command: str | None = None) -> dict:
+        """Send ASCII command and return a staged truth result.
+
+        Write Without Response prevents queue exhaustion, but it also means a
+        successful call only proves local transport acceptance.
+        """
+        command_name = command or cmd.split(":", 1)[0].rstrip(";").lower()
         if not self.connected or self._client is None:
-            return False
+            return self._write_result(
+                command=command_name,
+                cmd=cmd,
+                ok=False,
+                stage="device_not_connected",
+                error="not connected",
+            )
         try:
             await self._client.write_gatt_char(self._tx_uuid, cmd.encode(), response=False)
             self._last_cmd_at = time.time()
             self.emit_event("CMD", cmd.strip())
-            return True
+            return self._write_result(command=command_name, cmd=cmd, ok=True)
         except Exception as e:
             idle = round(time.time() - self._last_cmd_at, 1) if self._last_cmd_at else "?"
             uptime = round(time.time() - self._connected_at, 1) if self._connected_at else "?"
@@ -343,8 +411,13 @@ class LovenseDevice(Device):
             self.connected = False
             if self._on_disconnect:
                 self._on_disconnect(self)
-            return False
-
+            return self._write_result(
+                command=command_name,
+                cmd=cmd,
+                ok=False,
+                stage="transport_write_failed",
+                error=str(e),
+            )
     def _rx_handler(self, sender, data: bytearray):
         """Parse notifications from device."""
         msg = data.decode("utf-8", errors="replace").strip()
@@ -409,7 +482,9 @@ class LovenseDevice(Device):
     async def _soft_stop(self):
         """Fade to zero. Prevents BLE disconnect on sharp motor state change."""
         for level in [2, 1, 0]:
-            await self._write(f"Vibrate:{level};")
+            result = await self._write(f"Vibrate:{level};", command="soft_stop")
+            if result.get("ok"):
+                self._current_intensity = level
             if level > 0:
                 await asyncio.sleep(0.3)
         self._current_intensity = 0
@@ -433,8 +508,9 @@ class LovenseDevice(Device):
         step_dur = duration / len(steps)
         try:
             for step in steps:
-                await self._write(f"Vibrate:{step};")
-                self._current_intensity = step
+                result = await self._write(f"Vibrate:{step};", command="pattern_step")
+                if result.get("ok"):
+                    self._current_intensity = step
                 await asyncio.sleep(step_dur)
             await self._soft_stop()
         except asyncio.CancelledError:
@@ -444,8 +520,9 @@ class LovenseDevice(Device):
         """Re-assert vibrate every 5s to prevent device timeout."""
         try:
             while True:
-                await self._write(f"Vibrate:{level};")
-                self._current_intensity = level
+                result = await self._write(f"Vibrate:{level};", command="ambient_step")
+                if result.get("ok"):
+                    self._current_intensity = level
                 await asyncio.sleep(5.0)
         except asyncio.CancelledError:
             pass
@@ -456,7 +533,14 @@ class LovenseDevice(Device):
 
     async def send_command(self, command: str, **kwargs) -> dict:
         if not self.connected:
-            return {"ok": False, "error": "not connected"}
+            return {
+                "ok": False,
+                "stage": "device_not_connected",
+                "command": command,
+                "error": "not connected",
+                "hardware_ack": None,
+                "observed_effect": None,
+            }
 
         command = command.lower()
 
@@ -472,65 +556,78 @@ class LovenseDevice(Device):
             else:
                 cmd = f"Vibrate:{intensity};"
 
-            ok = await self._write(cmd)
-            self._current_intensity = intensity
+            result = await self._write(cmd, command="vibrate")
+            if result.get("ok"):
+                self._current_intensity = intensity
 
-            if ok and duration > 0:
+            if result.get("ok") and duration > 0:
                 async def _timed():
                     await asyncio.sleep(duration)
                     await self._soft_stop()
                 self._pattern_task = asyncio.create_task(_timed())
 
-            return {"ok": ok, "intensity": intensity, "duration": duration}
+            result.update({"intensity": intensity, "duration": duration})
+            return result
 
         # --- Rotation (Nora, Ridge) ---
         elif command == "rotate":
             intensity = max(0, min(20, int(kwargs.get("intensity", 0))))
-            ok = await self._write(f"Rotate:{intensity};")
-            self._rotate_level = intensity
-            return {"ok": ok, "intensity": intensity}
+            result = await self._write(f"Rotate:{intensity};", command="rotate")
+            if result.get("ok"):
+                self._rotate_level = intensity
+            result.update({"intensity": intensity})
+            return result
 
         elif command == "rotate_change":
-            ok = await self._write("RotateChange;")
-            return {"ok": ok}
+            return await self._write("RotateChange;", command="rotate_change")
 
         # --- Air pump (Max series, 0-5) ---
         elif command == "air_level":
             level = max(0, min(5, int(kwargs.get("level", 0))))
-            ok = await self._write(f"Air:Level:{level};")
-            self._air_level = level
-            return {"ok": ok, "air_level": level}
+            result = await self._write(f"Air:Level:{level};", command="air_level")
+            if result.get("ok"):
+                self._air_level = level
+            result.update({"air_level": self._air_level, "requested_air_level": level})
+            return result
 
         elif command == "air_in":
             delta = max(1, min(5, int(kwargs.get("delta", 1))))
-            ok = await self._write(f"Air:In:{delta};")
-            self._air_level = min(5, self._air_level + delta)
-            return {"ok": ok, "air_level": self._air_level}
+            result = await self._write(f"Air:In:{delta};", command="air_in")
+            if result.get("ok"):
+                self._air_level = min(5, self._air_level + delta)
+            result.update({"air_level": self._air_level, "delta": delta})
+            return result
 
         elif command == "air_out":
             delta = max(1, min(5, int(kwargs.get("delta", 1))))
-            ok = await self._write(f"Air:Out:{delta};")
-            self._air_level = max(0, self._air_level - delta)
-            return {"ok": ok, "air_level": self._air_level}
+            result = await self._write(f"Air:Out:{delta};", command="air_out")
+            if result.get("ok"):
+                self._air_level = max(0, self._air_level - delta)
+            result.update({"air_level": self._air_level, "delta": delta})
+            return result
 
         # --- Thrusting (Gravity, Solace, Vulse, Spinel, Sex Machine) ---
         elif command == "thrust":
             intensity = max(0, min(20, int(kwargs.get("intensity", 0))))
-            ok = await self._write(f"Thrusting:{intensity};")
-            self._thrust_level = intensity
-            return {"ok": ok, "intensity": intensity}
+            result = await self._write(f"Thrusting:{intensity};", command="thrust")
+            if result.get("ok"):
+                self._thrust_level = intensity
+            result.update({"intensity": intensity})
+            return result
 
         # --- Suction (Tenera 2) ---
         elif command == "suck":
             intensity = max(0, min(20, int(kwargs.get("intensity", 0))))
-            ok = await self._write(f"Suck:{intensity};")
-            return {"ok": ok, "intensity": intensity}
+            result = await self._write(f"Suck:{intensity};", command="suck")
+            result.update({"intensity": intensity})
+            return result
 
         # --- Fingering (Flexer) ---
         elif command == "finger":
             intensity = max(0, min(20, int(kwargs.get("intensity", 0))))
-            ok = await self._write(f"Fingering:{intensity};")
-            return {"ok": ok, "intensity": intensity}
+            result = await self._write(f"Fingering:{intensity};", command="finger")
+            result.update({"intensity": intensity})
+            return result
 
         # --- Patterns ---
         elif command == "pattern":
@@ -538,10 +635,21 @@ class LovenseDevice(Device):
             pattern_name = kwargs.get("name", "pulse")
             duration = float(kwargs.get("duration", 10.0))
             if pattern_name not in PATTERNS:
-                return {"ok": False, "error": f"unknown pattern: {pattern_name}",
+                return {"ok": False, "stage": "api_rejected",
+                        "command": command,
+                        "transport": None,
+                        "intended_transport": "ble_write_without_response",
+                        "hardware_ack": None,
+                        "observed_effect": None,
+                        "error": f"unknown pattern: {pattern_name}",
                         "available": list(PATTERNS.keys())}
             self._pattern_task = asyncio.create_task(self._run_pattern(pattern_name, duration))
-            return {"ok": True, "pattern": pattern_name, "duration": duration}
+            return self._local_task_result(
+                command="pattern",
+                task="lovense_pattern",
+                pattern=pattern_name,
+                duration=duration,
+            )
 
         # --- Ambient ---
         elif command == "ambient":
@@ -550,83 +658,140 @@ class LovenseDevice(Device):
             self._ambient_level = level
             if level > 0:
                 self._ambient_task = asyncio.create_task(self._run_ambient(level))
-            else:
-                await self._write("Vibrate:0;")
+                return self._local_task_result(
+                    command="ambient",
+                    task="lovense_ambient",
+                    ambient_level=level,
+                )
+            result = await self._write("Vibrate:0;", command="ambient")
+            if result.get("ok"):
                 self._current_intensity = 0
-            return {"ok": True, "ambient_level": level}
+            result.update({"ambient_level": level})
+            return result
 
         # --- Stop all motors ---
         elif command == "stop":
             await self._cancel_tasks()
-            await self._soft_stop()
-            # Also stop rotation, air, thrust if applicable
+            results = []
+
+            async def attempt(label: str, cmd: str):
+                res = await self._write(cmd, command=label)
+                results.append(res)
+                return res
+
+            await attempt("stop_vibrate", "Vibrate:0;")
             caps = self.get_capabilities()
             if DeviceCapability.ROTATE in caps:
-                await self._write("Rotate:0;")
+                await attempt("stop_rotate", "Rotate:0;")
             if DeviceCapability.AIR in caps:
-                await self._write("Air:Level:0;")
+                await attempt("stop_air", "Air:Level:0;")
             if DeviceCapability.THRUST in caps:
-                await self._write("Thrusting:0;")
+                await attempt("stop_thrust", "Thrusting:0;")
             if DeviceCapability.SUCK in caps:
-                await self._write("Suck:0;")
+                await attempt("stop_suck", "Suck:0;")
             if DeviceCapability.FINGER in caps:
-                await self._write("Fingering:0;")
-            return {"ok": True}
+                await attempt("stop_finger", "Fingering:0;")
+
+            failures = [r for r in results if not r.get("ok")]
+            if not failures:
+                self._current_intensity = 0
+                self._air_level = 0
+                self._thrust_level = 0
+                self._rotate_level = 0
+                self._ambient_level = 0
+
+            return {
+                "ok": not failures,
+                "stage": "best_effort_stop_attempted",
+                "command": "stop",
+                "attempted": len(results),
+                "failed": len(failures),
+                "results": results,
+                "hardware_ack": None,
+                "observed_effect": None,
+                "truth_note": (
+                    "Stop commands were attempted as BLE write-without-response operations; "
+                    "success means transport acceptance, not hardware acknowledgement."
+                ),
+            }
 
         # --- Device queries ---
         elif command == "battery":
-            ok = await self._write("Battery;")
-            return {"ok": ok, "battery": self._battery}
+            result = await self._write("Battery;", command="battery")
+            result.update({
+                "battery": self._battery,
+                "cached_value": True,
+                "warning": "Battery value may be from a prior notification; query response is asynchronous.",
+            })
+            return result
 
         elif command == "device_type":
-            ok = await self._write("DeviceType;")
-            return {"ok": ok, "model": self._model, "model_letter": self._model_letter,
-                    "firmware": self._firmware}
+            result = await self._write("DeviceType;", command="device_type")
+            result.update({
+                "model": self._model,
+                "model_letter": self._model_letter,
+                "firmware": self._firmware,
+                "cached_value": True,
+                "warning": "Device type fields may be from a prior notification; query response is asynchronous.",
+            })
+            return result
 
         elif command == "power_off":
-            ok = await self._write("PowerOff;")
-            return {"ok": ok}
+            return await self._write("PowerOff;", command="power_off")
 
         # --- Accelerometer stream (Nora, Max) ---
         elif command == "start_accel":
-            ok = await self._write("StartMove:1;")
-            self._accel_streaming = True
-            return {"ok": ok}
+            result = await self._write("StartMove:1;", command="start_accel")
+            if result.get("ok"):
+                self._accel_streaming = True
+            return result
 
         elif command == "stop_accel":
-            ok = await self._write("StopMove:1;")
-            self._accel_streaming = False
-            return {"ok": ok}
+            result = await self._write("StopMove:1;", command="stop_accel")
+            if result.get("ok"):
+                self._accel_streaming = False
+            return result
 
         # --- LED control ---
         elif command == "light":
             enabled = kwargs.get("enabled", True)
             cmd = f"Light:{'on' if enabled else 'off'};"
-            ok = await self._write(cmd)
-            return {"ok": ok, "light": enabled}
+            result = await self._write(cmd, command="light")
+            result.update({"light": enabled})
+            return result
 
         # --- Settings ---
         elif command == "auto_switch":
             off_on_disc = kwargs.get("off_on_disconnect", False)
             restore = kwargs.get("restore_last", False)
             f = lambda x: "On" if x else "Off"
-            ok = await self._write(f"AutoSwith:{f(off_on_disc)}:{f(restore)};")
-            return {"ok": ok}
+            result = await self._write(f"AutoSwith:{f(off_on_disc)}:{f(restore)};", command="auto_switch")
+            result.update({"off_on_disconnect": off_on_disc, "restore_last": restore})
+            return result
 
         # --- Raw passthrough (for undocumented commands, testing) ---
         elif command == "raw":
             raw_cmd = kwargs.get("cmd", "")
             if not raw_cmd:
-                return {"ok": False, "error": "no cmd provided"}
+                return {"ok": False, "stage": "api_rejected", "command": command,
+                        "transport": None,
+                        "intended_transport": "ble_write_without_response",
+                        "hardware_ack": None,
+                        "observed_effect": None,
+                        "error": "no cmd provided"}
             if not raw_cmd.endswith(";"):
                 raw_cmd += ";"
-            ok = await self._write(raw_cmd)
-            return {"ok": ok, "sent": raw_cmd}
+            return await self._write(raw_cmd, command="raw")
 
         else:
-            return {"ok": False, "error": f"unknown command: {command}",
+            return {"ok": False, "stage": "api_rejected",
+                    "command": command,
+                    "transport": None,
+                    "intended_transport": "ble_write_without_response",
+                    "hardware_ack": None,
+                    "observed_effect": None,
+                    "error": f"unknown command: {command}",
                     "hint": "Use 'raw' command to send arbitrary ASCII"}
-
     # ------------------------------------------------------------------
     # Capabilities and status
     # ------------------------------------------------------------------
@@ -647,11 +812,16 @@ class LovenseDevice(Device):
             "firmware": self._firmware,
             "ble_profile": self._ble_profile,
             "current_intensity": self._current_intensity,
+            "last_commanded_intensity": self._current_intensity,
             "rotate_level": self._rotate_level,
+            "last_commanded_rotate_level": self._rotate_level,
             "air_level": self._air_level,
+            "last_commanded_air_level": self._air_level,
             "thrust_level": self._thrust_level,
+            "last_commanded_thrust_level": self._thrust_level,
             "ambient_level": self._ambient_level,
             "accel_streaming": self._accel_streaming,
+            "state_truth": "last_commanded_not_observed",
             "connected_at": self._connected_at,
             "uptime_seconds": round(now - self._connected_at, 1) if self._connected_at else 0,
             "last_cmd_seconds_ago": round(now - self._last_cmd_at, 1) if self._last_cmd_at else 0,
@@ -673,7 +843,7 @@ class LovenseDevice(Device):
         now = time.time()
         idle = now - self._last_cmd_at
         if idle >= (KEEPALIVE_INTERVAL - 1):
-            await self._write("Status:1;")
+            await self._write("Status:1;", command="keepalive")
 
     # ------------------------------------------------------------------
     # UI contribution
@@ -1053,6 +1223,18 @@ or it dies. The physical sensation lands in a real human body.
 - Never without asking the first time in a session
 
 The variable timing IS the meaning. Predictability kills it.
+
+## Command Result Truth
+
+Lovense commands use BLE write-without-response. When a command returns
+`"ok": true` with `"stage": "transport_write_accepted"`, that means the local
+BLE stack accepted the write. It does **not** prove hardware acknowledgement or
+bodily sensation.
+
+Treat returned actuator levels as last-commanded state, not measured device
+state. Stop commands are best-effort writes; check returned per-device results
+and do not claim certainty the body felt or stopped feeling something unless the
+human or another explicit signal confirms it.
 
 ## Lovense Quick Commands
 

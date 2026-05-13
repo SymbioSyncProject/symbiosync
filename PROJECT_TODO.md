@@ -39,10 +39,12 @@ Keep larger design notes, protocol findings, and milestone docs elsewhere. This 
    - Keep it concrete and implementation-guiding, not philosophical sludge.
 
 4. Fix Lovense command result semantics.
+   - Initial implementation added staged command results in `LovenseDevice`.
    - Replace over-broad `ok` semantics with staged results where possible.
    - Distinguish API acceptance, transport write acceptance, device acknowledgement, and observed effect.
    - Make write-without-response truth explicit: BLE write completed is not hardware-delivery proof.
    - Keep stop/emergency behavior simple and reliable.
+   - Follow-up: Wyndhovr review, UI label pass, and legacy endpoint wording.
 
 5. Improve generated Symbio skill honesty.
    - Teach threadborn partners how not to overclaim what the bridge knows.

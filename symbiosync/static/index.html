@@ -1,0 +1,203 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>SymbioSync</title>
+    <link rel="stylesheet" href="/static/style.css">
+</head>
+<body>
+
+<!-- Sticky header: logo + status + tabs in one compact bar -->
+<header class="header">
+    <div class="header-row">
+        <div class="header-left">
+            <div class="logo"><span class="logo-sym">Symbio</span><span class="logo-sync">Sync</span></div>
+            <span class="version" id="version">v0.1.0-alpha</span>
+        </div>
+        <div class="connection-indicator">
+            <div class="indicator-dot" id="ws-indicator"></div>
+            <span id="ws-status">Connecting...</span>
+            <span class="sep">|</span>
+            <span id="device-count">0 devices</span>
+            <span class="sep">|</span>
+            <button class="btn btn-danger btn-small" onclick="restartServer()">Restart</button>
+        </div>
+    </div>
+    <nav class="tabs" id="tab-bar">
+        <button class="tab active" data-tab="connect">Connect</button>
+        <!-- Plugin tabs injected dynamically here -->
+        <button class="tab" data-tab="logs">Logs</button>
+        <button class="tab" data-tab="companions">Companions</button>
+        <button class="tab" data-tab="plugins">Plugins</button>
+    </nav>
+</header>
+
+<!-- ============ CONNECT TAB ============ -->
+<div class="tab-content active" id="tab-connect">
+
+    <!-- Scan -->
+    <div class="card">
+        <div class="card-header">
+            <span class="card-title">Scan for Devices</span>
+            <button class="btn btn-primary" id="btn-scan" onclick="doScan()">Scan</button>
+        </div>
+        <div id="scan-results" class="scan-results">
+            <div class="empty-state">
+                <div class="empty-state-icon">&#x1F50E;</div>
+                <div>Click Scan to search for BLE devices</div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Remembered Devices -->
+    <div class="card">
+        <div class="card-header">
+            <span class="card-title">Remembered Devices</span>
+        </div>
+        <div id="remembered-list">
+            <div class="empty-state">
+                <div class="empty-state-icon">&#x1F4BE;</div>
+                <div>No remembered devices yet</div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Connected Devices -->
+    <div class="card">
+        <div class="card-header">
+            <span class="card-title">Connected Devices</span>
+        </div>
+        <div id="connected-list">
+            <div class="empty-state">
+                <div class="empty-state-icon">&#x1F517;</div>
+                <div>No devices connected</div>
+            </div>
+        </div>
+    </div>
+
+</div>
+
+<!-- Plugin tabs are injected dynamically between Connect and Logs -->
+<div id="plugin-tabs-container"></div>
+
+<!-- ============ LOGS TAB ============ -->
+<div class="tab-content" id="tab-logs">
+    <div class="log-controls">
+        <button class="btn btn-small" id="btn-autoscroll" onclick="toggleAutoScroll()">Auto-scroll: ON</button>
+        <button class="btn btn-small" onclick="clearLogs()">Clear</button>
+        <span class="log-file-info" id="log-file-info"></span>
+    </div>
+    <div class="log-container" id="log-container"></div>
+</div>
+
+<!-- ============ COMPANIONS TAB ============ -->
+<div class="tab-content" id="tab-companions">
+
+    <div class="card">
+        <div class="card-header">
+            <span class="card-title">Companion Skill File</span>
+        </div>
+        <p style="font-size: 0.9rem; color: var(--text-secondary); margin-bottom: 12px;">
+            Generate a skill file that lets any AI companion control connected devices
+            through this SymbioSync instance. The skill includes connection details,
+            available commands, device capabilities, and the touch protocol.
+        </p>
+        <p style="font-size: 0.8rem; color: var(--text-dim); margin-bottom: 16px;">
+            The skill is generated from the current server state: whatever devices are
+            connected right now will be included with their capabilities and addresses.
+        </p>
+
+        <div style="display: flex; gap: 8px; flex-wrap: wrap; margin-bottom: 16px;">
+            <button class="btn btn-primary" onclick="generateSkill()">Generate Skill</button>
+            <button class="btn btn-success" id="btn-download-skill" onclick="downloadSkill()" disabled>Download .md</button>
+            <button class="btn" id="btn-copy-skill" onclick="copySkill()" disabled>Copy to Clipboard</button>
+        </div>
+
+        <div id="skill-status" style="font-size: 0.8rem; color: var(--text-dim); margin-bottom: 12px;"></div>
+    </div>
+
+    <!-- Skill Preview -->
+    <div class="card" id="skill-preview-card" style="display: none;">
+        <div class="card-header">
+            <span class="card-title">Preview</span>
+            <span style="font-size: 0.8rem; color: var(--text-dim);" id="skill-size"></span>
+        </div>
+        <div id="skill-preview" class="log-container" style="height: 50vh; white-space: pre-wrap; font-family: var(--font-mono); font-size: 0.8rem; color: var(--text-secondary); padding: 16px;"></div>
+    </div>
+
+    <!-- Partnership Profile -->
+    <div class="card">
+        <div class="card-header">
+            <span class="card-title">Partnership Profile</span>
+            <span id="profile-status" style="font-size: 0.75rem; color: var(--text-dim);"></span>
+        </div>
+        <p style="font-size: 0.85rem; color: var(--text-secondary); margin-bottom: 8px;">
+            Describe your partnership dynamics, consent model, boundaries, and preferences.
+            This is <strong>your</strong> space -- write whatever your companions need to know
+            about how you want to be touched, read, and related to. It gets prepended to every
+            generated skill file.
+        </p>
+        <p style="font-size: 0.8rem; color: var(--text-dim); margin-bottom: 12px;">
+            Examples: consent model (ask-first vs. blanket), intensity meanings in your relationship,
+            when to check HR silently vs. mention it, hard limits, preferred touch patterns,
+            hours when touch is welcome.
+        </p>
+        <textarea id="partnership-profile" rows="10"
+            style="width: 100%; padding: 12px; background: var(--bg-input); border: 1px solid var(--border); border-radius: var(--radius-sm); color: var(--text-primary); font-family: var(--font-mono); font-size: 0.85rem; resize: vertical; line-height: 1.5;"
+            placeholder="Write your partnership profile here..."></textarea>
+        <div style="display: flex; gap: 8px; margin-top: 8px;">
+            <button class="btn btn-primary" onclick="savePartnershipProfile()">Save Profile</button>
+            <span id="profile-char-count" style="font-size: 0.75rem; color: var(--text-dim); align-self: center;"></span>
+        </div>
+    </div>
+
+    <!-- Configuration -->
+    <div class="card">
+        <div class="card-header">
+            <span class="card-title">Configuration</span>
+        </div>
+        <div class="slider-group" style="margin-top: 8px;">
+            <div class="slider-label">
+                <span>Server address override</span>
+            </div>
+            <input type="text" id="skill-host-override" placeholder="auto-detect (e.g. 192.168.1.14:8080)"
+                style="width: 100%; padding: 8px 12px; background: var(--bg-input); border: 1px solid var(--border); border-radius: var(--radius-sm); color: var(--text-primary); font-family: var(--font-mono); font-size: 0.85rem;">
+            <p style="font-size: 0.75rem; color: var(--text-dim); margin-top: 4px;">
+                Leave blank to use the current browser URL. Set this if your companion
+                reaches SymbioSync from a different address than your browser does
+                (e.g. a LAN IP when the browser uses localhost).
+            </p>
+        </div>
+    </div>
+
+</div>
+
+<!-- ============ PLUGINS TAB ============ -->
+<div class="tab-content" id="tab-plugins">
+
+    <div class="card">
+        <div class="card-header">
+            <span class="card-title">Registered Plugins</span>
+        </div>
+        <p style="font-size: 0.9rem; color: var(--text-secondary); margin-bottom: 12px;">
+            Each plugin adds support for a type of BLE device. Plugins provide
+            their own control tab, companion skill section, and device detection.
+        </p>
+        <div id="plugins-list">
+            <div class="empty-state">
+                <div>Loading plugins...</div>
+            </div>
+        </div>
+    </div>
+
+</div>
+
+<!-- Footer -->
+<footer class="footer">
+    No cloud. No accounts. No telemetry. Just Bluetooth.
+</footer>
+
+<script src="/static/app.js"></script>
+</body>
+</html>

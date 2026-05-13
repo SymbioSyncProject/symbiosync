@@ -8,7 +8,8 @@ Keep larger design notes, protocol findings, and milestone docs elsewhere. This 
 
 - Canonical working folder: `D:\SymbioSync`
 - Private GitHub repo: `https://github.com/SymbioSyncProject/symbiosync`
-- Baseline commit pushed: `963bd4c chore: establish SymbioSync source baseline`
+- Sanitized baseline commit pushed: `ba801ac chore: establish sanitized SymbioSync baseline`
+- Private inferred-operation reference archive: `https://github.com/SymbioSyncProject/symbiosync-inferred-operations-private`
 - Retired legacy git folder: `D:\_symbiosync_retired\SymbioSync_legacy_git_20260513_112545`
 - Old private Colmi/ferri archaeology and data: `D:\feedback`
 - Runtime-private files stay local/ignored: `config.json`, `data/`, `logs/`, SQLite DBs, secrets, archives, APK dumps, key material.
@@ -16,7 +17,8 @@ Keep larger design notes, protocol findings, and milestone docs elsewhere. This 
 ## Immediate next steps
 
 1. Keep git baseline clean.
-   - Fresh baseline is established in the private GitHub repo.
+   - Sanitized baseline is established in the private GitHub repo.
+   - Raw Java-derived inferred-operation references were moved to the private reference archive and removed from main repo history.
    - Retired legacy git remains archive/provenance.
    - Do not include logs, local DBs, `config.json`, secrets, or raw intimate/biometric data.
 

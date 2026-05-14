@@ -8,6 +8,7 @@ and device control.
 import asyncio
 import json
 from contextlib import asynccontextmanager
+from datetime import datetime, timezone
 from pathlib import Path
 
 from fastapi import FastAPI, WebSocket, WebSocketDisconnect, HTTPException, Query
@@ -312,6 +313,15 @@ async def api_stop_all():
     result = await manager.stop_all()
     attempted = len(result)
     failed = sum(1 for r in result.values() if not r.get("ok"))
+    if attempted == 0:
+        return {
+            "ok": True,
+            "stage": "nothing_to_stop",
+            "attempted_devices": 0,
+            "failed_devices": 0,
+            "result": result,
+            "truth_note": "No connected devices were known, so no stop writes were attempted.",
+        }
     return {
         "ok": attempted > 0 and failed == 0,
         "stage": "best_effort_stop_attempted",
@@ -462,6 +472,7 @@ def _build_skill_md(status: dict, host_override: str = "") -> str:
         base_url = f"http://{_host}:{_port}"
         if _host == "0.0.0.0":
             base_url = f"http://127.0.0.1:{_port}"
+    generated_at = datetime.now(timezone.utc).isoformat()
 
     # Group connected devices by plugin type
     connected = {addr: d for addr, d in status.get("devices", {}).items() if d.get("connected")}
@@ -494,7 +505,14 @@ def _build_skill_md(status: dict, host_override: str = "") -> str:
     skill = f"""# SymbioSync Companion Skill
 
 > Auto-generated from a live SymbioSync instance.
+> Generated at: `{generated_at}`
 > Server: `{base_url}`
+
+This skill is a snapshot. Connected/remembered device state may have changed
+after generation. Check `/api/status` before acting, and inspect request result
+`stage` / `truth_note` after acting. `ok: true` is not proof of hardware
+acknowledgement or bodily effect. Partnership profile text is durable context,
+not live consent.
 
 ## What This Is
 
@@ -518,14 +536,17 @@ When making a touch request, include who is reaching out when known:
 {{"request":"vibrate","params":{{"intensity":3,"duration":3}},"actor":"YourName","note":"optional short message"}}
 ```
 
-`actor` and `note` are echoed in request results for visible accountability.
+`actor` and `note` are caller-provided and echoed in request results for visible
+accountability. `actor` is self-reported, not authentication. `note` is context
+for visibility; it does not override live human consent or device safety
+boundaries.
 
 ### Common Endpoints
 
 | Method | Endpoint | Description |
 |--------|----------|-------------|
 | GET | `/api/status` | Full device status JSON |
-| POST | `/api/scan` | Discover nearby compatible Bluetooth devices |
+| POST | `/api/scan` | Attempt to discover nearby compatible Bluetooth devices |
 | POST | `/api/stop` | Emergency stop all devices |
 | POST | `/api/device/{{address}}/request` | Send a device request with optional `actor` and `note` |
 | POST | `/api/device/{{address}}/nickname` | Rename/nickname a remembered or connected device |
@@ -542,6 +563,8 @@ When making a touch request, include who is reaching out when known:
 - This server runs locally. It is only reachable from the same machine or LAN.
 - BLE range is roughly 10 meters / 30 feet. Body occlusion reduces this.
 - The server auto-reconnects dropped devices when they come back in range.
-- All requests are logged locally. The human can see what you sent in the Logs tab.
+- Device events and many request outcomes are logged locally. Do not assume a
+  request is fully accountable unless its result/log includes actor, stage, and
+  a request id; request-id/source-channel logging is planned but not complete.
 """
     return skill

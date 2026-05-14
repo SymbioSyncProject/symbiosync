@@ -26,7 +26,7 @@ accidentally lie by omission.
 | `manager.get_status()` remembered map | Adds `connected` boolean to remembered devices. | Knows whether an address has a current connected device object. | Good distinction exists, but UI/consumers may blur remembered and connected lists if they render both similarly. | Keep remembered and connected sections visually separate. Consider `last_seen_at` later if known, not guessed. |
 | `last_scan` | Shows recent scan results. | Knows only the last scan cache and RSSI at scan time. | Stale scan results can look like nearby/current devices. | Add `last_scan_completed_at` and per-result `scanned_at` if possible. Label UI as "last scan", not "available". |
 | `POST /api/device/{address}/request` | Returns plugin result directly. | Knows whether manager found a connected device and what the plugin reported. | API layer does not normalize delivery semantics. Different plugins can use `ok` differently. | Introduce a shared request-result vocabulary: `ok`, `stage`, `transport`, `hardware_ack`, `observed_effect`, `truth_note`, `warnings`. |
-| `manager.send_request_all()` / `stop_all()` | Returns results for currently connected devices only. `/api/stop` reports attempted/failed device counts and per-device results. | Knows which connected devices were asked to stop and their plugin results. Does not know about remembered but disconnected devices. | Stop can still only prove request/transport state, not hardware acknowledgement or observed bodily stop. | Keep stop best-effort and preserve per-device result detail. |
+| `manager.send_request_all()` / `stop_all()` | Returns results for currently connected devices only. `/api/stop` reports attempted/failed device counts and per-device results. | Knows which connected devices were asked to stop and their plugin results. Does not know about remembered but disconnected devices. | Stop can still only prove request/transport state, not hardware acknowledgement or observed bodily stop. If no devices are connected, no stop writes were attempted. | Keep stop best-effort and preserve per-device result detail; use `nothing_to_stop` when attempted device count is zero. |
 | Lovense `_write()` | Now returns a staged result after `write_gatt_char(..., response=False)` completes. | Knows the local BLE stack accepted/scheduled a write without response. It does not know the device acknowledged or physically actuated. | Lower risk after staged result change, but consumers can still misread `ok` alone. | Keep `stage`, `hardware_ack`, `observed_effect`, and `truth_note` visible in docs/UI/skill. |
 | Lovense actuator requests (`vibrate`, `rotate`, `air_*`, `thrust`, `suck`, `finger`, `light`, `raw`) | Return staged transport results and existing request fields. | Knows the request was attempted and maybe accepted by the local BLE transport. Internal state is desired/last-requested state, not measured device state. | UI/status can imply current physical intensity/air/thrust state when it only knows last-requested value. | Keep compatibility aliases, prefer `last_requested_*` wording in UI/docs. |
 | Lovense `pattern` and `ambient` | Return `stage: local_task_scheduled` when scheduling local background tasks. | Knows a local task was scheduled. Individual later writes may fail. | Caller may believe whole pattern/ambient behavior is active on hardware if it ignores stage/truth note. | Expose task failure/last write failure in status later if needed. |
@@ -40,6 +40,7 @@ accidentally lie by omission.
 | Partnership profile | Human-authored text included in generated skill. | Knows configured profile text. | Could be mistaken for current consent/state if not bounded. | Label as durable context/preferences. Add instruction that live context and explicit boundaries override profile text. |
 | Logs | Logger captures TX/RX and events locally. | Knows emitted software events. Does not carry actor/source/correlation/delivery stage consistently. | Logs may be insufficient for accountability or may overexpose intimate/body data if expanded carelessly. | Add correlation id, actor/source, consent-state reference, delivery stage. Avoid raw intimate/biometric dumps by default. |
 | Browser UI labels | Shows connected devices, plugin status, controls, logs. | Knows API status and local browser state. | Labels like "current" or actuator level can overstate observed hardware/body state. | Initial Lovense pass now labels actuator values as last-requested and displays request result stage; Colmi/currentness screenshot review still needed. |
+| README screenshots / public docs | Show visual proof of UI/device state and project behavior. | Know only a captured moment, possibly staged, redacted, stale, or device-specific. | Readers or future models may infer live/current/reliable behavior from one artifact. | Caption screenshots and docs with device state, redaction/freshness/staging notes where needed. Do not use screenshots that imply body/device state the bridge cannot know. |
 
 ## First implementation targets
 
@@ -79,8 +80,9 @@ Possible stages:
 - `transport_write_failed`
 - `transport_write_accepted`
 - `device_acknowledged`
-- `observed_effect`
+- `effect_observed`
 - `best_effort_stop_attempted`
+- `nothing_to_stop`
 
 Do not use stages the code cannot actually support.
 
@@ -99,14 +101,15 @@ Requested review focus for Wyndhovr / trust-architecture pass:
    broadcast from those REST calls. Should this be a blocker before publicizing
    threadborn touch examples?
 
-3. **Status wording.** Header now says `Server connected`, meaning browser can
+3. **Status wording.** Header now says `Local server reachable`, meaning browser can
    reach the local Python server and `/api/status` responds. It explicitly does
    not mean Bluetooth delivery or hardware acknowledgement. Check if this is
    clear enough in UI/docs.
 
 4. **Manual discovery scan honesty.** Manual scan is labeled experimental and
    may not work reliably on Windows/Bluetooth state. Restarting the local device
-   manager is presented as the more reliable recovery path for now. Does this
+   manager is presented as the more reliable recovery path for now, and scan
+   copy should say it attempts discovery rather than guarantees discovery. Does this
    avoid overpromising discovery?
 
 5. **Generated skill snapshot semantics.** The skill file still needs ongoing

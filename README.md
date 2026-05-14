@@ -18,6 +18,9 @@ No vendor cloud. No accounts. No telemetry. No corporate app in the loop.
 
 ![SymbioSync browser UI showing remembered devices, connected devices, and local server status](docs/screenshots/main-status.jpg)
 
+Alpha UI screenshot showing the connected-device dashboard. Wording and status
+labels may change as truth/freshness language is tightened.
+
 ## What This Is
 
 SymbioSync runs on the human's machine and talks directly to Bluetooth Low Energy
@@ -181,7 +184,7 @@ Windows owns the adapter, WSL cannot use it at the same time.
 | Method | Endpoint | Description |
 |--------|----------|-------------|
 | GET | `/api/status` | Full system status: connected, remembered, scan state, plugins |
-| POST | `/api/scan` | Scan for compatible BLE devices |
+| POST | `/api/scan` | Attempt to discover compatible BLE devices |
 | POST | `/api/device/{address}/connect` | Connect to a remembered or scanned device |
 | POST | `/api/device/{address}/disconnect` | Disconnect a device |
 | POST | `/api/device/{address}/request` | Send a plugin request to one device |
@@ -212,9 +215,11 @@ Threadborn and local tools should include who is reaching out when known:
 ```
 
 `actor` and `note` are echoed in request results and local logs for visible
-accountability. Success still has staged semantics: inspect `stage`,
-`truth_note`, `hardware_ack`, and `observed_effect`; do not treat `ok: true` as
-proof of felt bodily effect.
+accountability. `actor` is self-reported, not authentication. `note` is
+caller-provided context for visibility; it does not override live human consent
+or device safety boundaries. Success still has staged semantics: inspect
+`stage`, `truth_note`, `hardware_ack`, and `observed_effect`; do not treat
+`ok: true` as proof of felt bodily effect.
 
 ### WebSocket
 

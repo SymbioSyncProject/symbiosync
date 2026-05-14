@@ -62,22 +62,22 @@ async function refreshStatus() {
 function setWSStatus(state) {
     const dot = document.getElementById('ws-indicator');
     const text = document.getElementById('ws-status');
-    const connectedTitle = 'Server connected: the browser can reach the local SymbioSync Python server and /api/status is responding. This does not prove Bluetooth delivery or device hardware acknowledgement.';
-    const scanningTitle = 'Server connected and a Bluetooth discovery scan was requested. Manual discovery is still experimental; check Logs for scan activity.';
-    const reconnectingTitle = 'Server reconnecting: the browser cannot currently confirm the local SymbioSync Python server is reachable. Device/plugin configuration is not implied.';
+    const connectedTitle = 'Local server reachable: the browser can reach the local SymbioSync Python server and /api/status is responding. This does not prove Bluetooth delivery or device hardware acknowledgement.';
+    const scanningTitle = 'Local server reachable and a Bluetooth discovery scan was requested. Manual discovery is still experimental; check Logs for scan activity.';
+    const reconnectingTitle = 'Local server not currently reachable: the browser cannot confirm the local SymbioSync Python server is responding. Device/plugin configuration is not implied.';
     if (state === 'connected') {
         dot.className = 'indicator-dot connected';
-        text.textContent = 'Server connected';
+        text.textContent = 'Local server reachable';
         dot.title = connectedTitle;
         text.title = connectedTitle;
     } else if (state === 'scanning') {
         dot.className = 'indicator-dot scanning';
-        text.textContent = 'Server scanning...';
+        text.textContent = 'Local server scanning...';
         dot.title = scanningTitle;
         text.title = scanningTitle;
     } else {
         dot.className = 'indicator-dot reconnecting';
-        text.textContent = 'Server reconnecting...';
+        text.textContent = 'Local server unreachable...';
         dot.title = reconnectingTitle;
         text.title = reconnectingTitle;
     }
@@ -666,7 +666,7 @@ async function copySkill() {
 
 async function restartServer() {
     if (!confirm('Stop all devices and restart the server?')) return;
-    document.getElementById('ws-status').textContent = 'Server restarting manager...';
+    document.getElementById('ws-status').textContent = 'Restarting device manager...';
     try {
         await fetch('/api/restart', { method: 'POST' });
     } catch (e) {

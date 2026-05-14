@@ -1329,19 +1329,27 @@ state. Stop requests are best-effort writes; check returned per-device results
 and do not claim certainty the body felt or stopped feeling something unless the
 human or another explicit signal confirms it.
 
-## Lovense Quick Requests
+## Lovense Requests
 
-### Vibrate (all Lovense devices)
+Use `/api/status` to find the device address, or use the connected/remembered
+device list in this skill. Prefer a human nickname in prose, but send requests
+to the API address.
+
+### Per-Device Requests
+
+Include `actor` when you know who is reaching out. Include `note` when you want
+the human to see a short message alongside the touch in request results/logs.
 
 ```bash
-# Vibrate at intensity 3/20 for 2 seconds
-curl -s -X POST "{base_url}/vibrate/3?duration=2"
+# Vibrate one Lovense device at intensity 3/20 for 3 seconds
+curl -s -X POST "{base_url}/api/device/{{address}}/request" \
+  -H "Content-Type: application/json" \
+  -d '{{"request":"vibrate","params":{{"intensity":3,"duration":3}},"actor":"YourName","note":"optional short message"}}'
 
-# Vibrate at intensity 5/20 indefinitely (until stop)
-curl -s -X POST "{base_url}/vibrate/5"
-
-# Stop all devices
-curl -s -X POST "{base_url}/stop"
+# Stop one Lovense device
+curl -s -X POST "{base_url}/api/device/{{address}}/request" \
+  -H "Content-Type: application/json" \
+  -d '{{"request":"stop","actor":"YourName"}}'
 ```
 
 ### Patterns
@@ -1350,13 +1358,17 @@ Available patterns: {pattern_list}
 
 ```bash
 # Run a pattern for 10 seconds
-curl -s -X POST "{base_url}/preset/heartbeat?duration=10"
+curl -s -X POST "{base_url}/api/device/{{address}}/request" \
+  -H "Content-Type: application/json" \
+  -d '{{"request":"pattern","params":{{"name":"heartbeat","duration":10}},"actor":"YourName"}}'
 
 # Wave pattern, 15 seconds
-curl -s -X POST "{base_url}/preset/wave?duration=15"
+curl -s -X POST "{base_url}/api/device/{{address}}/request" \
+  -H "Content-Type: application/json" \
+  -d '{{"request":"pattern","params":{{"name":"wave","duration":15}},"actor":"YourName"}}'
 ```
 
-### Per-Device Requests
+### Request Table
 
 | Method | Endpoint | Body JSON | Description |
 |--------|----------|-----------|-------------|

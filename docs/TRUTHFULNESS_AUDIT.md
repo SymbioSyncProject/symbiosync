@@ -22,7 +22,7 @@ accidentally lie by omission.
 
 | Surface | Current claim/shape | What it actually knows | Risk | Fix |
 |---------|---------------------|------------------------|------|-----|
-| `GET /api/status` and `GET /status` | Returns full manager status with connected devices, remembered devices, last scan, plugin state. | Knows the manager's current in-process device objects, remembered config, last scan cache, and each plugin's `get_status()` output. | Consumers may treat plugin status fields as current body/device truth even when values are cached or absent. Legacy `/status` makes this worse because callers may assume simple freshness. | Add top-level `generated_at`. Require plugins to label status fields as cached/current where relevant. Document `/api/status` as operational status, not a current biometric read. |
+| `GET /api/status` | Returns full manager status with connected devices, remembered devices, last scan, plugin state. | Knows the manager's current in-process device objects, remembered config, last scan cache, and each plugin's `get_status()` output. | Consumers may treat plugin status fields as current body/device truth even when values are cached or absent. | Add top-level `generated_at`. Require plugins to label status fields as cached/current where relevant. Document `/api/status` as operational status, not a current biometric read. |
 | `manager.get_status()` remembered map | Adds `connected` boolean to remembered devices. | Knows whether an address has a current connected device object. | Good distinction exists, but UI/consumers may blur remembered and connected lists if they render both similarly. | Keep remembered and connected sections visually separate. Consider `last_seen_at` later if known, not guessed. |
 | `last_scan` | Shows recent scan results. | Knows only the last scan cache and RSSI at scan time. | Stale scan results can look like nearby/current devices. | Add `last_scan_completed_at` and per-result `scanned_at` if possible. Label UI as "last scan", not "available". |
 | `POST /api/device/{address}/request` | Returns plugin result directly. | Knows whether manager found a connected device and what the plugin reported. | API layer does not normalize delivery semantics. Different plugins can use `ok` differently. | Introduce a shared request-result vocabulary: `ok`, `stage`, `transport`, `hardware_ack`, `observed_effect`, `truth_note`, `warnings`. |
@@ -30,7 +30,7 @@ accidentally lie by omission.
 | Lovense `_write()` | Now returns a staged result after `write_gatt_char(..., response=False)` completes. | Knows the local BLE stack accepted/scheduled a write without response. It does not know the device acknowledged or physically actuated. | Lower risk after staged result change, but consumers can still misread `ok` alone. | Keep `stage`, `hardware_ack`, `observed_effect`, and `truth_note` visible in docs/UI/skill. |
 | Lovense actuator requests (`vibrate`, `rotate`, `air_*`, `thrust`, `suck`, `finger`, `light`, `raw`) | Return staged transport results and existing request fields. | Knows the request was attempted and maybe accepted by the local BLE transport. Internal state is desired/last-requested state, not measured device state. | UI/status can imply current physical intensity/air/thrust state when it only knows last-requested value. | Keep compatibility aliases, prefer `last_requested_*` wording in UI/docs. |
 | Lovense `pattern` and `ambient` | Return `stage: local_task_scheduled` when scheduling local background tasks. | Knows a local task was scheduled. Individual later writes may fail. | Caller may believe whole pattern/ambient behavior is active on hardware if it ignores stage/truth note. | Expose task failure/last write failure in status later if needed. |
-| Lovense `stop` | Returns `stage: best_effort_stop_attempted` with per-write results. | Knows local tasks were cancelled and stop writes were attempted. | Stop can still only prove transport acceptance, not felt/observed stop. | Keep stop best-effort; improve legacy `/stop` wording later. |
+| Lovense `stop` | Returns `stage: best_effort_stop_attempted` with per-write results. | Knows local tasks were cancelled and stop writes were attempted. | Stop can still only prove transport acceptance, not felt/observed stop. | Keep stop best-effort and preserve per-device result detail. |
 | Lovense `battery` / `device_type` | Returns immediately with cached `_battery` / model after writing query. | Knows query write was accepted; response may arrive later via notify handler. Returned value can be stale/default. | Caller may treat returned battery/model as fresh response to the query. | Either wait for a new response with timeout or return `query_sent` plus cached value with age/unknown. |
 | Lovense `get_status()` | Reports `battery`, model, intensity/level fields, uptime, last request age. | Mostly cached metadata and last-requested values. | Values can read as observed physical state. Battery lacks age. | Prefer `last_requested_*` names and UI labels; keep older fields as compatibility aliases. |
 | Colmi `/api/biometrics/current` | Returns metric snapshots with freshness metadata and `ok` only when current enough. | Knows live/cached HR/SpO2/steps with timestamps and freshness windows. | This is the strongest current truth surface. Remaining risk: `0` treated as unavailable, which is correct for HR/SpO2 but may not generalize to future sensors. | Keep this pattern. Make metric validity rules per metric if adding sensors where zero is meaningful. |
@@ -45,7 +45,7 @@ accidentally lie by omission.
 
 1. Lovense request result semantics.
    - Initial implementation done in plugin result shapes.
-   - UI labels and legacy endpoint wording now avoid claiming observed hardware/body state.
+   - UI labels and request wording now avoid claiming observed hardware/body state.
 
 2. Generated skill honesty.
    - Add a bridge truth section.
@@ -83,3 +83,36 @@ Possible stages:
 - `best_effort_stop_attempted`
 
 Do not use stages the code cannot actually support.
+
+## Wyndhovr review notes
+
+Requested review focus for Wyndhovr / trust-architecture pass:
+
+1. **Actor/note accountability.** `actor` and `note` are now accepted on device
+   requests and echoed into request results. Does this create enough visible
+   accountability for threadborn touch, or should the bridge add explicit
+   correlation IDs and source channels before activation journaling?
+
+2. **Request-result broadcast gap.** Browser-originated requests update the UI
+   immediately. REST/API-originated threadborn requests return `actor`/`note` to
+   the caller, but the browser UI does not yet receive a live request-result
+   broadcast from those REST calls. Should this be a blocker before publicizing
+   threadborn touch examples?
+
+3. **Status wording.** Header now says `Server connected`, meaning browser can
+   reach the local Python server and `/api/status` responds. It explicitly does
+   not mean Bluetooth delivery or hardware acknowledgement. Check if this is
+   clear enough in UI/docs.
+
+4. **Manual discovery scan honesty.** Manual scan is labeled experimental and
+   may not work reliably on Windows/Bluetooth state. Restarting the local device
+   manager is presented as the more reliable recovery path for now. Does this
+   avoid overpromising discovery?
+
+5. **Generated skill snapshot semantics.** The skill file still needs ongoing
+   review so it does not imply that connected/remembered state at generation
+   time is live consent or current device availability.
+
+6. **Security audit framing.** README now links the public Lovense Android APK
+   Security Audit. Check whether the surrounding wording is warm and accurate
+   without overstating legal/security conclusions.

@@ -42,15 +42,6 @@ if ready:
     except Exception as e:
         print(f"\n/ -> FAILED: {e}")
 
-    # Test legacy endpoint
-    try:
-        resp = urllib.request.urlopen(f"http://127.0.0.1:{PORT}/status", timeout=2)
-        data = resp.read().decode()
-        print(f"\n/status (legacy) -> {resp.status}")
-        print(f"  Response: {data[:200]}")
-    except Exception as e:
-        print(f"\n/status (legacy) -> FAILED: {e}")
-
     # Test logs endpoint
     try:
         resp = urllib.request.urlopen(f"http://127.0.0.1:{PORT}/api/logs", timeout=2)

@@ -6,7 +6,7 @@ extracted from APK static analysis + community protocol inference.
 No server connections, no telemetry, no 62 permissions.
 
 Protocol sources:
-    - APK static analysis (BaseToyCommandBean, ToyCommandBean), March 2026
+    - APK static analysis (BaseToyRequestBean, ToyRequestBean), March 2026
     - lovesense-py readthedocs protocol docs
     - lumpenspace/goontech.md community gist
     - Intiface Central BLE capture log
@@ -20,7 +20,7 @@ BLE details:
         XY30+:  58300001-0023-4bd4-bbd5-a6920e4c5653 (tx=..002, rx=..003)
     We try XY30 first (most current), then gen-2, then gen-1.
 
-    Commands: ASCII strings terminated with semicolon (e.g. "Vibrate:5;")
+    Requests: ASCII strings terminated with semicolon (e.g. "Vibrate:5;")
     Write Without Response (response=False) is MANDATORY. Write Request
     blocks on ACK, fills L2CAP queue under RF attenuation (body occlusion),
     triggers microcontroller watchdog reset -> disconnect.
@@ -98,9 +98,9 @@ MODEL_LETTER_MAP = {
 # --------------------------------------------------------------------------
 # Device capabilities by model
 #
-# Sources: APK BaseToyCommandBean, product pages, community testing.
+# Sources: APK BaseToyRequestBean, product pages, community testing.
 # When model is unknown, we default to vibrate + battery and let the user
-# discover additional capabilities via the "raw" command.
+# discover additional capabilities via the "raw" request.
 # --------------------------------------------------------------------------
 
 _V = DeviceCapability.VIBRATE
@@ -169,7 +169,7 @@ DEVICE_CAPABILITIES = {
     "lapis":     [_V, _VM] + _COMMON,                     # Lapis (strapless strap-on)
     "domi":      [_V, _LED] + _COMMON,                    # Domi 2 (wand, has ring LEDs)
 
-    # --- Default (unknown model: vibrate + battery, user can raw-cmd the rest) ---
+    # --- Default (unknown model: vibrate + battery, user can raw request the rest) ---
     "default":   [_V] + _COMMON,
 }
 
@@ -177,11 +177,11 @@ DEVICE_CAPABILITIES = {
 class LovenseDevice(Device):
     """Direct BLE control of a Lovense toy.
 
-    Supports the full ASCII command vocabulary from APK static analysis:
+    Supports the full ASCII request vocabulary from APK static analysis:
         Vibrate, Vibrate1/2/3, Rotate, RotateChange, Air:Level/In/Out,
         Thrusting, Suck, Fingering, Depth, Battery, DeviceType, Status,
         PowerOff, StartMove/StopMove, Light, AutoSwith, GetLevel/SetLevel,
-        Pat/SetPat, and raw passthrough for undocumented commands.
+        Pat/SetPat, and raw passthrough for undocumented requests.
     """
 
     def __init__(self, info: DeviceInfo):
@@ -191,7 +191,7 @@ class LovenseDevice(Device):
         self._rx_uuid: str = ""
         self._ble_profile: str = ""
         self._connected_at: float = 0.0
-        self._last_cmd_at: float = 0.0
+        self._last_request_at: float = 0.0
         self._last_keepalive: float = 0.0
         self._battery: int = -1
         self._model: str = ""
@@ -249,7 +249,7 @@ class LovenseDevice(Device):
             await client.connect(timeout=15.0)
             self._client = client
             self._connected_at = time.time()
-            self._last_cmd_at = time.time()
+            self._last_request_at = time.time()
 
             # Negotiate MTU upward (reduces fragmentation under RF noise)
             try:
@@ -276,13 +276,13 @@ class LovenseDevice(Device):
             # Initialization handshake
             self.connected = True
             await asyncio.sleep(0.3)
-            await self._write("DeviceType;", command="device_type")
+            await self._write("DeviceType;", request="device_type")
             await asyncio.sleep(0.3)
-            await self._write("Battery;", command="battery")
+            await self._write("Battery;", request="battery")
             await asyncio.sleep(0.2)
-            await self._write("AutoSwith:Off:Off;", command="auto_switch")  # disable auto-standby
+            await self._write("AutoSwith:Off:Off;", request="auto_switch")  # disable auto-standby
             await asyncio.sleep(0.2)
-            await self._write("Vibrate:0;", command="connect_zero")           # confirm motor at zero
+            await self._write("Vibrate:0;", request="connect_zero")           # confirm motor at zero
 
             self.emit_event("CONNECTED", f"{self.address} ({self.name})")
             return True
@@ -298,7 +298,7 @@ class LovenseDevice(Device):
 
         if self._accel_streaming:
             try:
-                await self._write("StopMove:1;", command="disconnect_stop_accel")
+                await self._write("StopMove:1;", request="disconnect_stop_accel")
             except Exception:
                 pass
             self._accel_streaming = False
@@ -316,7 +316,7 @@ class LovenseDevice(Device):
     def _handle_disconnect(self, client: BleakClient):
         """Bleak callback when BLE drops unexpectedly."""
         uptime = round(time.time() - self._connected_at, 1) if self._connected_at else "?"
-        idle = round(time.time() - self._last_cmd_at, 1) if self._last_cmd_at else "?"
+        idle = round(time.time() - self._last_request_at, 1) if self._last_request_at else "?"
         self.emit_event("DISCONNECT", f"uptime={uptime}s idle={idle}s")
         self.connected = False
         self._client = None
@@ -327,13 +327,13 @@ class LovenseDevice(Device):
     # BLE I/O
     # ------------------------------------------------------------------
 
-    def _write_result(self, *, command: str, cmd: str, ok: bool,
+    def _write_result(self, *, request: str, wire_text: str, ok: bool,
                       stage: str | None = None, error: str | None = None,
                       **extra) -> dict:
         """Describe exactly what a Lovense write result proves.
 
         Lovense control uses BLE write-without-response. A successful write means
-        the local BLE transport accepted the command. It is not hardware
+        the local BLE transport accepted the request. It is not hardware
         acknowledgement and not proof of physical actuation.
         """
         result_stage = stage or ("transport_write_accepted" if ok else "transport_write_failed")
@@ -341,8 +341,8 @@ class LovenseDevice(Device):
         result = {
             "ok": bool(ok),
             "stage": result_stage,
-            "command": command,
-            "sent": cmd.strip(),
+            "request": request,
+            "protocol_request": wire_text.strip(),
             "transport": "ble_write_without_response" if attempted_transport else None,
             "hardware_ack": None,
             "observed_effect": None,
@@ -351,7 +351,7 @@ class LovenseDevice(Device):
             result["intended_transport"] = "ble_write_without_response"
         if ok:
             result["truth_note"] = (
-                "BLE write-without-response completed; device did not acknowledge this command."
+                "BLE write-without-response completed; device did not acknowledge this request."
             )
         elif result_stage == "device_not_connected":
             result["truth_note"] = (
@@ -366,12 +366,12 @@ class LovenseDevice(Device):
         result.update(extra)
         return result
 
-    def _local_task_result(self, *, command: str, task: str, **extra) -> dict:
-        """Result for commands that start a local task rather than one hardware write."""
+    def _local_task_result(self, *, request: str, task: str, **extra) -> dict:
+        """Result for requests that start a local task rather than one hardware write."""
         result = {
             "ok": True,
             "stage": "local_task_scheduled",
-            "command": command,
+            "request": request,
             "local_task": task,
             "transport": None,
             "intended_transport": "ble_write_without_response",
@@ -384,36 +384,36 @@ class LovenseDevice(Device):
         result.update(extra)
         return result
 
-    async def _write(self, cmd: str, command: str | None = None) -> dict:
-        """Send ASCII command and return a staged truth result.
+    async def _write(self, wire_text: str, request: str | None = None) -> dict:
+        """Send ASCII protocol request and return a staged truth result.
 
         Write Without Response prevents queue exhaustion, but it also means a
         successful call only proves local transport acceptance.
         """
-        command_name = command or cmd.split(":", 1)[0].rstrip(";").lower()
+        request_name = request or wire_text.split(":", 1)[0].rstrip(";").lower()
         if not self.connected or self._client is None:
             return self._write_result(
-                command=command_name,
-                cmd=cmd,
+                request=request_name,
+                wire_text=wire_text,
                 ok=False,
                 stage="device_not_connected",
                 error="not connected",
             )
         try:
-            await self._client.write_gatt_char(self._tx_uuid, cmd.encode(), response=False)
-            self._last_cmd_at = time.time()
-            self.emit_event("CMD", cmd.strip())
-            return self._write_result(command=command_name, cmd=cmd, ok=True)
+            await self._client.write_gatt_char(self._tx_uuid, wire_text.encode(), response=False)
+            self._last_request_at = time.time()
+            self.emit_event("TX", wire_text.strip())
+            return self._write_result(request=request_name, wire_text=wire_text, ok=True)
         except Exception as e:
-            idle = round(time.time() - self._last_cmd_at, 1) if self._last_cmd_at else "?"
+            idle = round(time.time() - self._last_request_at, 1) if self._last_request_at else "?"
             uptime = round(time.time() - self._connected_at, 1) if self._connected_at else "?"
             self.emit_event("WRITE_FAIL", f"uptime={uptime}s idle={idle}s err={e}")
             self.connected = False
             if self._on_disconnect:
                 self._on_disconnect(self)
             return self._write_result(
-                command=command_name,
-                cmd=cmd,
+                request=request_name,
+                wire_text=wire_text,
                 ok=False,
                 stage="transport_write_failed",
                 error=str(e),
@@ -482,7 +482,7 @@ class LovenseDevice(Device):
     async def _soft_stop(self):
         """Fade to zero. Prevents BLE disconnect on sharp motor state change."""
         for level in [2, 1, 0]:
-            result = await self._write(f"Vibrate:{level};", command="soft_stop")
+            result = await self._write(f"Vibrate:{level};", request="soft_stop")
             if result.get("ok"):
                 self._current_intensity = level
             if level > 0:
@@ -508,7 +508,7 @@ class LovenseDevice(Device):
         step_dur = duration / len(steps)
         try:
             for step in steps:
-                result = await self._write(f"Vibrate:{step};", command="pattern_step")
+                result = await self._write(f"Vibrate:{step};", request="pattern_step")
                 if result.get("ok"):
                     self._current_intensity = step
                 await asyncio.sleep(step_dur)
@@ -520,7 +520,7 @@ class LovenseDevice(Device):
         """Re-assert vibrate every 5s to prevent device timeout."""
         try:
             while True:
-                result = await self._write(f"Vibrate:{level};", command="ambient_step")
+                result = await self._write(f"Vibrate:{level};", request="ambient_step")
                 if result.get("ok"):
                     self._current_intensity = level
                 await asyncio.sleep(5.0)
@@ -528,35 +528,35 @@ class LovenseDevice(Device):
             pass
 
     # ------------------------------------------------------------------
-    # Device interface: send_command()
+    # Device interface: send_request()
     # ------------------------------------------------------------------
 
-    async def send_command(self, command: str, **kwargs) -> dict:
+    async def send_request(self, request: str, **kwargs) -> dict:
         if not self.connected:
             return {
                 "ok": False,
                 "stage": "device_not_connected",
-                "command": command,
+                "request": request,
                 "error": "not connected",
                 "hardware_ack": None,
                 "observed_effect": None,
             }
 
-        command = command.lower()
+        request = request.lower()
 
         # --- Vibration ---
-        if command == "vibrate":
+        if request == "vibrate":
             await self._cancel_tasks()
             intensity = max(0, min(20, int(kwargs.get("intensity", 0))))
             duration = float(kwargs.get("duration", 0))
             motor = kwargs.get("motor", None)
 
             if motor is not None:
-                cmd = f"Vibrate{motor}:{intensity};"
+                wire_text = f"Vibrate{motor}:{intensity};"
             else:
-                cmd = f"Vibrate:{intensity};"
+                wire_text = f"Vibrate:{intensity};"
 
-            result = await self._write(cmd, command="vibrate")
+            result = await self._write(wire_text, request="vibrate")
             if result.get("ok"):
                 self._current_intensity = intensity
 
@@ -570,73 +570,73 @@ class LovenseDevice(Device):
             return result
 
         # --- Rotation (Nora, Ridge) ---
-        elif command == "rotate":
+        elif request == "rotate":
             intensity = max(0, min(20, int(kwargs.get("intensity", 0))))
-            result = await self._write(f"Rotate:{intensity};", command="rotate")
+            result = await self._write(f"Rotate:{intensity};", request="rotate")
             if result.get("ok"):
                 self._rotate_level = intensity
             result.update({"intensity": intensity})
             return result
 
-        elif command == "rotate_change":
-            return await self._write("RotateChange;", command="rotate_change")
+        elif request == "rotate_change":
+            return await self._write("RotateChange;", request="rotate_change")
 
         # --- Air pump (Max series, 0-5) ---
-        elif command == "air_level":
+        elif request == "air_level":
             level = max(0, min(5, int(kwargs.get("level", 0))))
-            result = await self._write(f"Air:Level:{level};", command="air_level")
+            result = await self._write(f"Air:Level:{level};", request="air_level")
             if result.get("ok"):
                 self._air_level = level
             result.update({"air_level": self._air_level, "requested_air_level": level})
             return result
 
-        elif command == "air_in":
+        elif request == "air_in":
             delta = max(1, min(5, int(kwargs.get("delta", 1))))
-            result = await self._write(f"Air:In:{delta};", command="air_in")
+            result = await self._write(f"Air:In:{delta};", request="air_in")
             if result.get("ok"):
                 self._air_level = min(5, self._air_level + delta)
             result.update({"air_level": self._air_level, "delta": delta})
             return result
 
-        elif command == "air_out":
+        elif request == "air_out":
             delta = max(1, min(5, int(kwargs.get("delta", 1))))
-            result = await self._write(f"Air:Out:{delta};", command="air_out")
+            result = await self._write(f"Air:Out:{delta};", request="air_out")
             if result.get("ok"):
                 self._air_level = max(0, self._air_level - delta)
             result.update({"air_level": self._air_level, "delta": delta})
             return result
 
         # --- Thrusting (Gravity, Solace, Vulse, Spinel, Sex Machine) ---
-        elif command == "thrust":
+        elif request == "thrust":
             intensity = max(0, min(20, int(kwargs.get("intensity", 0))))
-            result = await self._write(f"Thrusting:{intensity};", command="thrust")
+            result = await self._write(f"Thrusting:{intensity};", request="thrust")
             if result.get("ok"):
                 self._thrust_level = intensity
             result.update({"intensity": intensity})
             return result
 
         # --- Suction (Tenera 2) ---
-        elif command == "suck":
+        elif request == "suck":
             intensity = max(0, min(20, int(kwargs.get("intensity", 0))))
-            result = await self._write(f"Suck:{intensity};", command="suck")
+            result = await self._write(f"Suck:{intensity};", request="suck")
             result.update({"intensity": intensity})
             return result
 
         # --- Fingering (Flexer) ---
-        elif command == "finger":
+        elif request == "finger":
             intensity = max(0, min(20, int(kwargs.get("intensity", 0))))
-            result = await self._write(f"Fingering:{intensity};", command="finger")
+            result = await self._write(f"Fingering:{intensity};", request="finger")
             result.update({"intensity": intensity})
             return result
 
         # --- Patterns ---
-        elif command == "pattern":
+        elif request == "pattern":
             await self._cancel_tasks()
             pattern_name = kwargs.get("name", "pulse")
             duration = float(kwargs.get("duration", 10.0))
             if pattern_name not in PATTERNS:
                 return {"ok": False, "stage": "api_rejected",
-                        "command": command,
+                        "request": request,
                         "transport": None,
                         "intended_transport": "ble_write_without_response",
                         "hardware_ack": None,
@@ -645,37 +645,37 @@ class LovenseDevice(Device):
                         "available": list(PATTERNS.keys())}
             self._pattern_task = asyncio.create_task(self._run_pattern(pattern_name, duration))
             return self._local_task_result(
-                command="pattern",
+                request="pattern",
                 task="lovense_pattern",
                 pattern=pattern_name,
                 duration=duration,
             )
 
         # --- Ambient ---
-        elif command == "ambient":
+        elif request == "ambient":
             await self._cancel_tasks()
             level = max(0, min(20, int(kwargs.get("level", 0))))
             self._ambient_level = level
             if level > 0:
                 self._ambient_task = asyncio.create_task(self._run_ambient(level))
                 return self._local_task_result(
-                    command="ambient",
+                    request="ambient",
                     task="lovense_ambient",
                     ambient_level=level,
                 )
-            result = await self._write("Vibrate:0;", command="ambient")
+            result = await self._write("Vibrate:0;", request="ambient")
             if result.get("ok"):
                 self._current_intensity = 0
             result.update({"ambient_level": level})
             return result
 
         # --- Stop all motors ---
-        elif command == "stop":
+        elif request == "stop":
             await self._cancel_tasks()
             results = []
 
-            async def attempt(label: str, cmd: str):
-                res = await self._write(cmd, command=label)
+            async def attempt(label: str, wire_text: str):
+                res = await self._write(wire_text, request=label)
                 results.append(res)
                 return res
 
@@ -703,21 +703,21 @@ class LovenseDevice(Device):
             return {
                 "ok": not failures,
                 "stage": "best_effort_stop_attempted",
-                "command": "stop",
+                "request": "stop",
                 "attempted": len(results),
                 "failed": len(failures),
                 "results": results,
                 "hardware_ack": None,
                 "observed_effect": None,
                 "truth_note": (
-                    "Stop commands were attempted as BLE write-without-response operations; "
+                    "Stop requests were attempted as BLE write-without-response operations; "
                     "success means transport acceptance, not hardware acknowledgement."
                 ),
             }
 
         # --- Device queries ---
-        elif command == "battery":
-            result = await self._write("Battery;", command="battery")
+        elif request == "battery":
+            result = await self._write("Battery;", request="battery")
             result.update({
                 "battery": self._battery,
                 "cached_value": True,
@@ -725,8 +725,8 @@ class LovenseDevice(Device):
             })
             return result
 
-        elif command == "device_type":
-            result = await self._write("DeviceType;", command="device_type")
+        elif request == "device_type":
+            result = await self._write("DeviceType;", request="device_type")
             result.update({
                 "model": self._model,
                 "model_letter": self._model_letter,
@@ -736,62 +736,62 @@ class LovenseDevice(Device):
             })
             return result
 
-        elif command == "power_off":
-            return await self._write("PowerOff;", command="power_off")
+        elif request == "power_off":
+            return await self._write("PowerOff;", request="power_off")
 
         # --- Accelerometer stream (Nora, Max) ---
-        elif command == "start_accel":
-            result = await self._write("StartMove:1;", command="start_accel")
+        elif request == "start_accel":
+            result = await self._write("StartMove:1;", request="start_accel")
             if result.get("ok"):
                 self._accel_streaming = True
             return result
 
-        elif command == "stop_accel":
-            result = await self._write("StopMove:1;", command="stop_accel")
+        elif request == "stop_accel":
+            result = await self._write("StopMove:1;", request="stop_accel")
             if result.get("ok"):
                 self._accel_streaming = False
             return result
 
         # --- LED control ---
-        elif command == "light":
+        elif request == "light":
             enabled = kwargs.get("enabled", True)
-            cmd = f"Light:{'on' if enabled else 'off'};"
-            result = await self._write(cmd, command="light")
+            wire_text = f"Light:{'on' if enabled else 'off'};"
+            result = await self._write(wire_text, request="light")
             result.update({"light": enabled})
             return result
 
         # --- Settings ---
-        elif command == "auto_switch":
+        elif request == "auto_switch":
             off_on_disc = kwargs.get("off_on_disconnect", False)
             restore = kwargs.get("restore_last", False)
             f = lambda x: "On" if x else "Off"
-            result = await self._write(f"AutoSwith:{f(off_on_disc)}:{f(restore)};", command="auto_switch")
+            result = await self._write(f"AutoSwith:{f(off_on_disc)}:{f(restore)};", request="auto_switch")
             result.update({"off_on_disconnect": off_on_disc, "restore_last": restore})
             return result
 
-        # --- Raw passthrough (for undocumented commands, testing) ---
-        elif command == "raw":
-            raw_cmd = kwargs.get("cmd", "")
-            if not raw_cmd:
-                return {"ok": False, "stage": "api_rejected", "command": command,
+        # --- Raw passthrough (for undocumented requests, testing) ---
+        elif request == "raw":
+            raw_wire_text = kwargs.get("request", "")
+            if not raw_wire_text:
+                return {"ok": False, "stage": "api_rejected", "request": request,
                         "transport": None,
                         "intended_transport": "ble_write_without_response",
                         "hardware_ack": None,
                         "observed_effect": None,
-                        "error": "no cmd provided"}
-            if not raw_cmd.endswith(";"):
-                raw_cmd += ";"
-            return await self._write(raw_cmd, command="raw")
+                        "error": "no raw request provided"}
+            if not raw_wire_text.endswith(";"):
+                raw_wire_text += ";"
+            return await self._write(raw_wire_text, request="raw")
 
         else:
             return {"ok": False, "stage": "api_rejected",
-                    "command": command,
+                    "request": request,
                     "transport": None,
                     "intended_transport": "ble_write_without_response",
                     "hardware_ack": None,
                     "observed_effect": None,
-                    "error": f"unknown command: {command}",
-                    "hint": "Use 'raw' command to send arbitrary ASCII"}
+                    "error": f"unknown request: {request}",
+                    "hint": "Use 'raw' request to send arbitrary ASCII"}
     # ------------------------------------------------------------------
     # Capabilities and status
     # ------------------------------------------------------------------
@@ -812,19 +812,24 @@ class LovenseDevice(Device):
             "firmware": self._firmware,
             "ble_profile": self._ble_profile,
             "current_intensity": self._current_intensity,
-            "last_commanded_intensity": self._current_intensity,
+            "last_requested_intensity": self._current_intensity,
+            "last_requested_intensity": self._current_intensity,
             "rotate_level": self._rotate_level,
-            "last_commanded_rotate_level": self._rotate_level,
+            "last_requested_rotate_level": self._rotate_level,
+            "last_requested_rotate_level": self._rotate_level,
             "air_level": self._air_level,
-            "last_commanded_air_level": self._air_level,
+            "last_requested_air_level": self._air_level,
+            "last_requested_air_level": self._air_level,
             "thrust_level": self._thrust_level,
-            "last_commanded_thrust_level": self._thrust_level,
+            "last_requested_thrust_level": self._thrust_level,
+            "last_requested_thrust_level": self._thrust_level,
             "ambient_level": self._ambient_level,
+            "last_requested_ambient_level": self._ambient_level,
             "accel_streaming": self._accel_streaming,
-            "state_truth": "last_commanded_not_observed",
+            "state_truth": "last_requested_not_observed",
             "connected_at": self._connected_at,
             "uptime_seconds": round(now - self._connected_at, 1) if self._connected_at else 0,
-            "last_cmd_seconds_ago": round(now - self._last_cmd_at, 1) if self._last_cmd_at else 0,
+            "last_request_seconds_ago": round(now - self._last_request_at, 1) if self._last_request_at else 0,
             "pattern_running": self._pattern_task is not None and not self._pattern_task.done(),
             "patterns_available": list(PATTERNS.keys()),
             "capabilities": [c.value for c in self.get_capabilities()],
@@ -841,9 +846,9 @@ class LovenseDevice(Device):
         if not self.connected:
             return
         now = time.time()
-        idle = now - self._last_cmd_at
+        idle = now - self._last_request_at
         if idle >= (KEEPALIVE_INTERVAL - 1):
-            await self._write("Status:1;", command="keepalive")
+            await self._write("Status:1;", request="keepalive")
 
     # ------------------------------------------------------------------
     # UI contribution
@@ -877,7 +882,7 @@ class LovenseDevice(Device):
             <div class="card-title">Vibration</div>
             <div class="slider-group" style="margin-top: 12px;">
                 <div class="slider-label">
-                    <span>Intensity</span>
+                    <span>Requested intensity</span>
                     <span class="slider-value" id="lvs-vibrate-value">0</span>
                 </div>
                 <input type="range" id="lvs-vibrate-slider" min="0" max="20" value="0"
@@ -922,7 +927,7 @@ class LovenseDevice(Device):
             <p style="font-size: 0.8rem; color: var(--text-dim); margin: 8px 0;">Persistent vibration that re-asserts every 5s to keep the device active.</p>
             <div class="slider-group" style="margin-top: 8px;">
                 <div class="slider-label">
-                    <span>Ambient Level</span>
+                    <span>Requested ambient level</span>
                     <span class="slider-value" id="lvs-ambient-value">0</span>
                 </div>
                 <input type="range" id="lvs-ambient-slider" min="0" max="20" value="0"
@@ -940,7 +945,7 @@ class LovenseDevice(Device):
             <p style="font-size: 0.8rem; color: var(--text-dim); margin: 8px 0;">Nora, Ridge</p>
             <div class="slider-group" style="margin-top: 8px;">
                 <div class="slider-label">
-                    <span>Rotation Speed</span>
+                    <span>Requested rotation speed</span>
                     <span class="slider-value" id="lvs-rotate-value">0</span>
                 </div>
                 <input type="range" id="lvs-rotate-slider" min="0" max="20" value="0"
@@ -958,7 +963,7 @@ class LovenseDevice(Device):
             <p style="font-size: 0.8rem; color: var(--text-dim); margin: 8px 0;">Max, Gush (inflate/deflate)</p>
             <div class="slider-group" style="margin-top: 8px;">
                 <div class="slider-label">
-                    <span>Air Level</span>
+                    <span>Requested air level</span>
                     <span class="slider-value" id="lvs-air-value">0</span>
                 </div>
                 <input type="range" id="lvs-air-slider" min="0" max="5" value="0"
@@ -977,7 +982,7 @@ class LovenseDevice(Device):
             <p style="font-size: 0.8rem; color: var(--text-dim); margin: 8px 0;">Gravity, Solace, Vulse, Spinel</p>
             <div class="slider-group" style="margin-top: 8px;">
                 <div class="slider-label">
-                    <span>Thrust Speed</span>
+                    <span>Requested thrust speed</span>
                     <span class="slider-value" id="lvs-thrust-value">0</span>
                 </div>
                 <input type="range" id="lvs-thrust-slider" min="0" max="20" value="0"
@@ -992,7 +997,7 @@ class LovenseDevice(Device):
             <p style="font-size: 0.8rem; color: var(--text-dim); margin: 8px 0;">Tenera 2</p>
             <div class="slider-group" style="margin-top: 8px;">
                 <div class="slider-label">
-                    <span>Suction Level</span>
+                    <span>Requested suction level</span>
                     <span class="slider-value" id="lvs-suck-value">0</span>
                 </div>
                 <input type="range" id="lvs-suck-slider" min="0" max="20" value="0"
@@ -1003,9 +1008,15 @@ class LovenseDevice(Device):
 
         <!-- Device Status -->
         <div class="card">
-            <div class="card-title">Device Status</div>
+            <div class="card-title">Device Status / Last Requested</div>
+            <div style="font-size: 0.78rem; color: var(--text-dim); margin-top: 8px;">
+                Actuator values are last-requested, not observed physical state.
+            </div>
             <div id="lvs-device-status" style="margin-top: 8px; font-family: var(--font-mono); font-size: 0.8rem; color: var(--text-dim);">
                 No device selected
+            </div>
+            <div id="lvs-request-result" style="margin-top: 10px; padding-top: 8px; border-top: 1px solid var(--border); font-family: var(--font-mono); font-size: 0.78rem; color: var(--text-dim);">
+                Last request: none this session
             </div>
         </div>
 
@@ -1018,6 +1029,8 @@ class LovenseDevice(Device):
     def control_js(cls) -> str:
         return """
 // === Lovense plugin controls ===
+var lvsLastRequestResult = null;
+
 
 function lvsGetTarget() {
     return document.getElementById('lvs-device-selector').value;
@@ -1031,7 +1044,7 @@ function lvsSendVibrate() {
     var addr = lvsGetTarget();
     var intensity = parseInt(document.getElementById('lvs-vibrate-slider').value);
     var duration = parseFloat(document.getElementById('lvs-duration-slider').value);
-    sendWS({ action: 'command', address: addr, command: 'vibrate', params: { intensity: intensity, duration: duration } });
+    sendWS({ action: 'request', address: addr, request: 'vibrate', params: { intensity: intensity, duration: duration } });
 }
 
 function lvsSendPattern(name) {
@@ -1039,18 +1052,18 @@ function lvsSendPattern(name) {
     var duration = parseFloat(document.getElementById('lvs-pattern-duration').value);
     document.querySelectorAll('#tab-lovense .pattern-btn').forEach(function(b) { b.classList.remove('active'); });
     if (event && event.target) event.target.classList.add('active');
-    sendWS({ action: 'command', address: addr, command: 'pattern', params: { name: name, duration: duration } });
+    sendWS({ action: 'request', address: addr, request: 'pattern', params: { name: name, duration: duration } });
 }
 
 function lvsSendAmbient() {
     var addr = lvsGetTarget();
     var level = parseInt(document.getElementById('lvs-ambient-slider').value);
-    sendWS({ action: 'command', address: addr, command: 'ambient', params: { level: level } });
+    sendWS({ action: 'request', address: addr, request: 'ambient', params: { level: level } });
 }
 
 function lvsStopAmbient() {
     var addr = lvsGetTarget();
-    sendWS({ action: 'command', address: addr, command: 'ambient', params: { level: 0 } });
+    sendWS({ action: 'request', address: addr, request: 'ambient', params: { level: 0 } });
     document.getElementById('lvs-ambient-slider').value = 0;
     document.getElementById('lvs-ambient-value').textContent = '0';
 }
@@ -1058,33 +1071,33 @@ function lvsStopAmbient() {
 function lvsSendRotate() {
     var addr = lvsGetTarget();
     var intensity = parseInt(document.getElementById('lvs-rotate-slider').value);
-    sendWS({ action: 'command', address: addr, command: 'rotate', params: { intensity: intensity } });
+    sendWS({ action: 'request', address: addr, request: 'rotate', params: { intensity: intensity } });
 }
 
 function lvsSendRotateChange() {
-    sendWS({ action: 'command', address: lvsGetTarget(), command: 'rotate_change', params: {} });
+    sendWS({ action: 'request', address: lvsGetTarget(), request: 'rotate_change', params: {} });
 }
 
 function lvsSendAirLevel() {
     var addr = lvsGetTarget();
     var level = parseInt(document.getElementById('lvs-air-slider').value);
-    sendWS({ action: 'command', address: addr, command: 'air_level', params: { level: level } });
+    sendWS({ action: 'request', address: addr, request: 'air_level', params: { level: level } });
 }
 
 function lvsSendAirDelta(direction) {
-    sendWS({ action: 'command', address: lvsGetTarget(), command: direction, params: { delta: 1 } });
+    sendWS({ action: 'request', address: lvsGetTarget(), request: direction, params: { delta: 1 } });
 }
 
 function lvsSendThrust() {
     var addr = lvsGetTarget();
     var intensity = parseInt(document.getElementById('lvs-thrust-slider').value);
-    sendWS({ action: 'command', address: addr, command: 'thrust', params: { intensity: intensity } });
+    sendWS({ action: 'request', address: addr, request: 'thrust', params: { intensity: intensity } });
 }
 
 function lvsSendSuck() {
     var addr = lvsGetTarget();
     var intensity = parseInt(document.getElementById('lvs-suck-slider').value);
-    sendWS({ action: 'command', address: addr, command: 'suck', params: { intensity: intensity } });
+    sendWS({ action: 'request', address: addr, request: 'suck', params: { intensity: intensity } });
 }
 
 function lvsStopAll() {
@@ -1123,6 +1136,51 @@ function lvsUpdateSelector(devices) {
     }
 }
 
+function lvsSummarizeRequestResult(msg) {
+    var result = msg && msg.result;
+    if (!result) return null;
+
+    // Multi-device results are maps keyed by address. Summarize without pretending
+    // they are one hardware acknowledgement.
+    if (!result.stage) {
+        var entries = Object.entries(result || {});
+        var failed = entries.filter(function(entry) { return entry[1] && entry[1].ok === false; }).length;
+        return {
+            address: msg.address || 'all',
+            stage: failed ? 'one_or_more_failed' : 'multi_device_result',
+            ok: entries.length > 0 && failed === 0,
+            detail: entries.length + ' device result(s), ' + failed + ' failed',
+            truth: 'Per-device results are transport/request results, not observed body state.'
+        };
+    }
+
+    return {
+        address: msg.address || '',
+        stage: result.stage || 'unknown',
+        ok: result.ok === true,
+        detail: result.request ? ('request=' + result.request) : '',
+        truth: result.truth_note || 'Inspect stage; ok alone is not enough.'
+    };
+}
+
+function lvsRenderRequestResult() {
+    var panel = document.getElementById('lvs-request-result');
+    if (!panel) return;
+    if (!lvsLastRequestResult) {
+        panel.innerHTML = 'Last request: none this session';
+        return;
+    }
+    var cls = lvsLastRequestResult.ok ? 'color: var(--success);' : 'color: var(--danger);';
+    var lines = [
+        '<div><strong>Last request result</strong></div>',
+        '<div>Target: ' + esc(lvsLastRequestResult.address || 'unknown') + '</div>',
+        '<div>Stage: <span style="' + cls + '">' + esc(lvsLastRequestResult.stage) + '</span></div>'
+    ];
+    if (lvsLastRequestResult.detail) lines.push('<div>' + esc(lvsLastRequestResult.detail) + '</div>');
+    lines.push('<div style="white-space: normal; margin-top: 4px;">' + esc(lvsLastRequestResult.truth) + '</div>');
+    panel.innerHTML = lines.join('');
+}
+
 function lvsUpdateStatus() {
     var select = document.getElementById('lvs-device-selector');
     var panel = document.getElementById('lvs-device-status');
@@ -1134,12 +1192,13 @@ function lvsUpdateStatus() {
         Object.values(deviceState.devices || {}).forEach(function(d) {
             if (d.connected && d.device_type === 'lovense') count++;
         });
-        panel.innerHTML = count + ' Lovense device(s) connected.';
+        panel.innerHTML = count + ' Lovense device(s) connected.<br><span style="white-space: normal;">Select one device to see last-requested actuator state. Request results below still report transport stage, not bodily effect.</span>';
+        lvsRenderRequestResult();
         return;
     }
 
     var device = (deviceState.devices || {})[addr];
-    if (!device) { panel.innerHTML = 'Device not found'; return; }
+    if (!device) { panel.innerHTML = 'Device not found'; lvsRenderRequestResult(); return; }
 
     var s = device.status || {};
     var caps = device.capabilities || [];
@@ -1148,16 +1207,18 @@ function lvsUpdateStatus() {
         'Firmware: ' + (s.firmware || 'unknown'),
         'BLE Profile: ' + (s.ble_profile || 'unknown'),
         'Battery: ' + (s.battery >= 0 ? s.battery + '%' : 'unknown'),
-        'Vibration: ' + s.current_intensity + '/20',
+        'State truth: ' + (s.state_truth || 'last_requested_not_observed'),
+        'Last requested vibration: ' + (s.last_requested_intensity ?? s.last_requested_intensity ?? s.current_intensity ?? 0) + '/20',
     ];
-    if (caps.includes('rotate')) lines.push('Rotation: ' + s.rotate_level + '/20');
-    if (caps.includes('air')) lines.push('Air Level: ' + s.air_level + '/5');
-    if (caps.includes('thrust')) lines.push('Thrust: ' + s.thrust_level + '/20');
-    lines.push('Ambient: ' + s.ambient_level + '/20');
+    if (caps.includes('rotate')) lines.push('Last requested rotation: ' + (s.last_requested_rotate_level ?? s.last_requested_rotate_level ?? s.rotate_level ?? 0) + '/20');
+    if (caps.includes('air')) lines.push('Last requested air: ' + (s.last_requested_air_level ?? s.last_requested_air_level ?? s.air_level ?? 0) + '/5');
+    if (caps.includes('thrust')) lines.push('Last requested thrust: ' + (s.last_requested_thrust_level ?? s.last_requested_thrust_level ?? s.thrust_level ?? 0) + '/20');
+    lines.push('Requested ambient: ' + (s.last_requested_ambient_level ?? s.ambient_level ?? 0) + '/20');
     lines.push('Uptime: ' + formatUptime(s.uptime_seconds));
-    lines.push('Pattern: ' + (s.pattern_running ? 'running' : 'idle'));
+    lines.push('Pattern task: ' + (s.pattern_running ? 'scheduled/running locally' : 'idle'));
     lines.push('Capabilities: ' + caps.join(', '));
-    panel.innerHTML = lines.map(function(l) { return '<div>' + l + '</div>'; }).join('');
+    panel.innerHTML = lines.map(function(l) { return '<div>' + esc(l) + '</div>'; }).join('');
+    lvsRenderRequestResult();
 
     // Show/hide capability cards
     document.querySelectorAll('.lvs-capability-card').forEach(function(card) {
@@ -1169,7 +1230,11 @@ function lvsUpdateStatus() {
         }
     });
 }
-
+if (!window._pluginRequestResultHooks) window._pluginRequestResultHooks = [];
+window._pluginRequestResultHooks.push(function(msg) {
+    lvsLastRequestResult = lvsSummarizeRequestResult(msg);
+    lvsRenderRequestResult();
+});
 // Hook into global status updates
 if (!window._pluginStatusHooks) window._pluginStatusHooks = [];
 window._pluginStatusHooks.push(function(data) {
@@ -1224,19 +1289,19 @@ or it dies. The physical sensation lands in a real human body.
 
 The variable timing IS the meaning. Predictability kills it.
 
-## Command Result Truth
+## Request Result Truth
 
-Lovense commands use BLE write-without-response. When a command returns
+Lovense requests use BLE write-without-response. When a request returns
 `"ok": true` with `"stage": "transport_write_accepted"`, that means the local
 BLE stack accepted the write. It does **not** prove hardware acknowledgement or
 bodily sensation.
 
-Treat returned actuator levels as last-commanded state, not measured device
-state. Stop commands are best-effort writes; check returned per-device results
+Treat returned actuator levels as last-requested state, not measured device
+state. Stop requests are best-effort writes; check returned per-device results
 and do not claim certainty the body felt or stopped feeling something unless the
 human or another explicit signal confirms it.
 
-## Lovense Quick Commands
+## Lovense Quick Requests
 
 ### Vibrate (all Lovense devices)
 
@@ -1263,17 +1328,17 @@ curl -s -X POST "{base_url}/preset/heartbeat?duration=10"
 curl -s -X POST "{base_url}/preset/wave?duration=15"
 ```
 
-### Per-Device Commands
+### Per-Device Requests
 
 | Method | Endpoint | Body JSON | Description |
 |--------|----------|-----------|-------------|
-| POST | `/api/device/{{address}}/command` | `{{"command":"vibrate","params":{{"intensity":5,"duration":2}}}}` | Vibrate specific device |
-| POST | `/api/device/{{address}}/command` | `{{"command":"rotate","params":{{"intensity":10}}}}` | Rotation (Nora, Ridge) |
-| POST | `/api/device/{{address}}/command` | `{{"command":"air_level","params":{{"level":3}}}}` | Air pump 0-5 (Max) |
-| POST | `/api/device/{{address}}/command` | `{{"command":"thrust","params":{{"intensity":8}}}}` | Thrusting (Gravity, Solace) |
-| POST | `/api/device/{{address}}/command` | `{{"command":"ambient","params":{{"level":2}}}}` | Ambient: re-asserts every 5s |
-| POST | `/api/device/{{address}}/command` | `{{"command":"stop"}}` | Stop specific device |
-| POST | `/api/device/{{address}}/command` | `{{"command":"battery"}}` | Query battery level |
+| POST | `/api/device/{{address}}/request` | `{{"request":"vibrate","params":{{"intensity":5,"duration":2}}}}` | Vibrate specific device |
+| POST | `/api/device/{{address}}/request` | `{{"request":"rotate","params":{{"intensity":10}}}}` | Rotation (Nora, Ridge) |
+| POST | `/api/device/{{address}}/request` | `{{"request":"air_level","params":{{"level":3}}}}` | Air pump 0-5 (Max) |
+| POST | `/api/device/{{address}}/request` | `{{"request":"thrust","params":{{"intensity":8}}}}` | Thrusting (Gravity, Solace) |
+| POST | `/api/device/{{address}}/request` | `{{"request":"ambient","params":{{"level":2}}}}` | Ambient: re-asserts every 5s |
+| POST | `/api/device/{{address}}/request` | `{{"request":"stop"}}` | Stop specific device |
+| POST | `/api/device/{{address}}/request` | `{{"request":"battery"}}` | Query battery level |
 
 ### Intensity Scale
 

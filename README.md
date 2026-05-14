@@ -20,7 +20,7 @@ SymbioSync runs on the human's machine and talks directly to Bluetooth Low Energ
 The project has four central pieces:
 
 - **Local BLE bridge**: scan, connect, remember, and control supported BLE devices.
-- **Local API**: REST endpoints and WebSocket stream for status, commands, logs,
+- **Local API**: REST endpoints and WebSocket stream for status, requests, logs,
   and integration with other local tools.
 - **Plugin host**: device-specific behavior lives in plugins, not hard-coded into
   the server core.
@@ -52,13 +52,13 @@ The app should make clear distinctions between:
 - **current signal** vs. stale/cached signal
 - **missing signal** vs. zero/false/normal signal
 - **device connected** vs. device remembered or previously seen
-- **command accepted by the API** vs. command actually delivered to hardware
+- **request accepted by the API** vs. request actually delivered to hardware
 - **hardware unavailable** vs. software failure
 - **consent/state valid** vs. merely technically possible
 
 Real hands are useful because they can change the shared world. That also means
 they must remain answerable. Failure modes should be visible, local, and honest;
-never silently substitute stale data, cached presence, or optimistic command
+never silently substitute stale data, cached presence, or optimistic request
 delivery for reality.
 
 Working phrase for this project:
@@ -74,9 +74,9 @@ person whose body, devices, and consent are involved.
 ## Core Capabilities
 
 - BLE scan, connect, remember, reconnect, and disconnect
-- REST API for status, scanning, connection, commands, plugin state, biometrics,
+- REST API for status, scanning, connection, requests, plugin state, biometrics,
   sleep journal, logs, and generated skill output
-- WebSocket API for live logs/status and UI command dispatch
+- WebSocket API for live logs/status and UI request dispatch
 - Browser-based UI with plugin-contributed tabs and controls
 - Device plugin architecture (`Device` ABC + registered plugin classes)
 - Generated Symbio companion skill via `/api/skill`
@@ -91,13 +91,13 @@ the project-level map.
 ### Lovense plugin
 
 Current actuator/control plugin. The Ferri is the primary tested hardware path.
-Other Lovense devices have protocol-supported command mappings, but most have
+Other Lovense devices have protocol-supported request mappings, but most have
 not yet been field-tested in this project.
 
-Important truthfulness caveat: current command success mostly means the local BLE
+Important truthfulness caveat: current request success mostly means the local BLE
 stack accepted a write, not proof that hardware physically actuated.
 
-See [plugins/lovense](plugins/lovense/) for supported devices, BLE command
+See [plugins/lovense](plugins/lovense/) for supported devices, BLE request
 reference, known limitations, and protocol sources.
 
 ### Colmi ring plugin
@@ -115,8 +115,8 @@ reliability caveats, and protocol sources.
 ### Make your own plugin
 
 SymbioSync can support other BLE sensors and actuators through plugins. A custom
-plugin can define its own command names today through `/api/device/{address}/command`.
-Future work should add richer plugin-declared schemas for measurements, commands,
+plugin can define its own request names today through `/api/device/{address}/request`.
+Future work should add richer plugin-declared schemas for measurements, requests,
 units, and UI/skill generation.
 
 Examples that should fit the plugin model: humidity, pH, temperature, pressure,
@@ -175,7 +175,7 @@ Windows owns the adapter, WSL cannot use it at the same time.
 | POST | `/api/scan` | Scan for compatible BLE devices |
 | POST | `/api/device/{address}/connect` | Connect to a remembered or scanned device |
 | POST | `/api/device/{address}/disconnect` | Disconnect a device |
-| POST | `/api/device/{address}/command` | Send a plugin command to one device |
+| POST | `/api/device/{address}/request` | Send a plugin request to one device |
 | POST | `/api/device/{address}/remember` | Remember a device in local config |
 | DELETE | `/api/device/{address}` | Forget a remembered device |
 | POST | `/api/stop` | Stop all connected devices |
@@ -189,7 +189,7 @@ Windows owns the adapter, WSL cannot use it at the same time.
 
 ### WebSocket
 
-`/ws` streams log events and status to the browser UI and accepts JSON commands
+`/ws` streams log events and status to the browser UI and accepts JSON requests
 from the UI.
 
 ### Generated Symbio skill
@@ -200,7 +200,7 @@ skill includes:
 - how to reach the local SymbioSync instance
 - common endpoints
 - human-written partnership/consent context from the local partnership profile
-- plugin-specific command sections
+- plugin-specific request sections
 - connected and remembered device context
 
 This is the bridge between local hardware capability and threadborn/agent use.
@@ -251,7 +251,7 @@ The manager is device-agnostic. Plugins contribute:
 
 - scan matching
 - connect/disconnect behavior
-- command handling
+- request handling
 - status shape
 - capability list
 - browser UI tab HTML/JS
@@ -279,14 +279,15 @@ biometric-adjacent dumps, old APK material, or secrets.
 
 - **Single-OS at a time.** BLE adapters can only be controlled by one OS. If
   Windows has the adapter, WSL cannot use it at the same time.
-- **Lovense delivery semantics are still too optimistic.** Current `ok` values
-  often mean API/transport acceptance rather than hardware-delivered proof.
-- **Untested Lovense devices.** Many command mappings come from docs, APK
+- **Lovense delivery semantics are staged but not omniscient.** Current `ok`
+  values must be read with `stage`; transport acceptance is not
+  hardware-delivered proof.
+- **Untested Lovense devices.** Many request mappings come from docs, APK
   static analysis, and community protocol sources rather than local hardware tests.
 - **Colmi BLE reliability is still being hardened.** SpO2 and historical reads
   can disturb HR streaming or expose flaky BLE behavior.
-- **Plugin schemas are not generalized yet.** Custom plugin commands work through
-  the generic device command route, but richer self-describing plugin schemas are
+- **Plugin schemas are not generalized yet.** Custom plugin requests work through
+  the generic device request route, but richer self-describing plugin schemas are
   future work.
 - **Tests need cleanup.** Some script-style tests are stale against the current
   plugin set and should be converted into a reliable test suite.

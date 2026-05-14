@@ -1,18 +1,18 @@
 # Lovense plugin
 
 The Lovense plugin is SymbioSync's current actuator/control plugin. It talks
-directly to Lovense BLE devices using the ASCII command protocol.
+directly to Lovense BLE devices using the ASCII request protocol.
 
 ## Status
 
 Alpha.
 
-The Ferri is the primary tested hardware path. Other devices have command support
+The Ferri is the primary tested hardware path. Other devices have request support
 based on protocol documentation, community sources, APK protocol inference, and
 the shared Lovense BLE protocol, but most have not yet been verified on physical
 hardware in this project.
 
-Important truthfulness note: command success means the local BLE stack accepted
+Important truthfulness note: request success means the local BLE stack accepted
 a write-without-response unless a stronger stage is explicitly reported. It
 should not be treated as proof that hardware physically actuated.
 
@@ -65,17 +65,17 @@ should not be treated as proof that hardware physically actuated.
 | Lapis | Vibrate + Multi | Strapless strap-on |
 
 All supported Lovense devices also expose battery query, power-off, and status
-keepalive commands where firmware supports them.
+keepalive requests where firmware supports them.
 
-## BLE command reference
+## BLE request reference
 
-All commands are ASCII strings terminated with `;`. The plugin currently writes
+All requests are ASCII strings terminated with `;`. The plugin currently writes
 without response to avoid queue pressure and BLE stalls. That is transport-level
 behavior, not proof of physical actuation.
 
-## Command result semantics
+## Request result semantics
 
-Lovense API command results keep `ok` for compatibility, but now include a
+Lovense API request results keep `ok` for compatibility, but now include a
 truth stage. Typical actuator success looks like:
 
 ```json
@@ -85,7 +85,7 @@ truth stage. Typical actuator success looks like:
   "transport": "ble_write_without_response",
   "hardware_ack": null,
   "observed_effect": null,
-  "truth_note": "BLE write-without-response completed; device did not acknowledge this command."
+  "truth_note": "BLE write-without-response completed; device did not acknowledge this request."
 }
 ```
 
@@ -98,7 +98,7 @@ results.
 
 ### Universal
 
-| Command | Range | Response | Description |
+| Request | Range | Response | Description |
 |---------|-------|----------|-------------|
 | `Vibrate:x;` | 0-20 | `OK;` | Set vibration level |
 | `Vibrate1:x;` | 0-20 | `OK;` | Motor 1 on multi-motor devices |
@@ -112,22 +112,22 @@ results.
 
 ### Rotation
 
-| Command | Range | Response | Description |
+| Request | Range | Response | Description |
 |---------|-------|----------|-------------|
 | `Rotate:x;` | 0-20 | `OK;` | Set rotation speed |
 | `RotateChange;` | | `OK;` | Toggle rotation direction |
 
 ### Air pump
 
-| Command | Range | Response | Description |
+| Request | Range | Response | Description |
 |---------|-------|----------|-------------|
 | `Air:Level:x;` | 0-5 | `OK;` | Set absolute inflation level |
 | `Air:In:x;` | 1-5 | `OK;` | Inflate by x steps |
 | `Air:Out:x;` | 1-5 | `OK;` | Deflate by x steps |
 
-### Other actuator commands
+### Other actuator requests
 
-| Command | Range | Response | Description |
+| Request | Range | Response | Description |
 |---------|-------|----------|-------------|
 | `Thrusting:x;` | 0-20 | `OK;` | Set thrust speed |
 | `Suck:x;` | 0-20 | `OK;` | Set suction level |
@@ -135,7 +135,7 @@ results.
 
 ### Accelerometer
 
-| Command | Response | Description |
+| Request | Response | Description |
 |---------|----------|-------------|
 | `StartMove:1;` | `GxxxxyyyyzzzZ;` | Start 3-axis accel stream |
 | `StopMove:1;` | `OK;` | Stop accel stream |
@@ -155,12 +155,12 @@ Tried in order at connection time:
 - Delivery semantics are explicit transport-stage results, not hardware-delivered
   proof.
 - Many device mappings are not locally hardware-tested.
-- Heating commands are not implemented.
+- Heating requests are not implemented.
 - Gen-1 devices may need different characteristic handling.
 
 ## Protocol sources
 
-- APK static analysis: `com.component.dxtoy.core.commandcore.bean.BaseToyCommandBean`
+- APK static analysis: `com.component.dxtoy.core.requestcore.bean.BaseToyRequestBean`
   from Lovense Connect 3.5.4 and Lovense Remote
 - [lovesense-py protocol docs](https://lovesense-py.readthedocs.io/en/latest/protocol.html)
 - [lumpenspace/goontech.md](https://gist.github.com/lumpenspace/fa371d44498d2668b1794bc3d520c072)

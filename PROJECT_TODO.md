@@ -28,28 +28,30 @@ Keep larger design notes, protocol findings, and milestone docs elsewhere. This 
    - Stale tests.
    - Logs/data needing private handling.
    - Endpoints overstating freshness/currentness.
-   - Command paths overstating delivery.
+   - Request paths overstating delivery.
    - First implementation moves.
    - Role boundaries.
 
 3. Write explicit truthfulness audit doc.
    - Create `docs/TRUTHFULNESS_AUDIT.md` or equivalent.
-   - Map surfaces where the bridge may accidentally lie: `/api/status`, `/status`, device `get_status()`, Lovense command responses, Lovense `_write`, Colmi cached status vs `/api/biometrics/current`, generated skill text, logs, and UI labels.
+   - Map surfaces where the bridge may accidentally lie: `/api/status`, `/status`, device `get_status()`, Lovense request responses, Lovense `_write`, Colmi cached status vs `/api/biometrics/current`, generated skill text, logs, and UI labels.
    - Use columns like: surface, current claim, what it actually knows, risk, fix.
    - Keep it concrete and implementation-guiding, not philosophical sludge.
 
-4. Fix Lovense command result semantics.
-   - Initial implementation added staged command results in `LovenseDevice`.
+4. Fix Lovense request result semantics.
+   - Initial implementation added staged request results in `LovenseDevice`.
    - Replace over-broad `ok` semantics with staged results where possible.
    - Distinguish API acceptance, transport write acceptance, device acknowledgement, and observed effect.
    - Make write-without-response truth explicit: BLE write completed is not hardware-delivery proof.
    - Keep stop/emergency behavior simple and reliable.
-   - Follow-up: Wyndhovr review, UI label pass, and legacy endpoint wording.
+   - Wyndhovr review applied; legacy endpoint wording softened.
+   - Initial UI label pass added last-requested language and request-result stage display.
+   - Follow-up: broader generated skill honesty pass and hardware/browser screenshot verification.
 
 5. Improve generated Symbio skill honesty.
    - Teach threadborn partners how not to overclaim what the bridge knows.
    - Include freshness/currentness guidance.
-   - Include command-delivery caveats.
+   - Include request-delivery caveats.
    - Include consent/profile boundaries without pretending profile text replaces live state.
    - Make logs/visibility and stop behavior clear.
 
@@ -71,14 +73,14 @@ Keep larger design notes, protocol findings, and milestone docs elsewhere. This 
    - Use this to answer questions like: "it felt like I was awake for hours, but the ring shows light sleep after 14 minutes."
    - Keep subjective markers distinct from ring-measured sleep stages; do not collapse felt experience and sensor classification into one truth claim.
 
-9. Clarify Lovense command truthfulness.
+9. Clarify Lovense request truthfulness.
    - Separate API acceptance from BLE write acceptance.
    - Do not imply hardware acknowledgement unless the device actually acknowledged.
    - Define result stages before activation journaling.
 
 10. Design activation journal before implementing it.
    - Treat as consented relational/intimate event history, not debug logs.
-   - Include actor/source, consent-state reference, command/protocol, target alias, delivery stage, and correlation id.
+   - Include actor/source, consent-state reference, request/protocol, target alias, delivery stage, and correlation id.
    - Avoid raw payloads or biometric/intimate dumps by default.
 
 11. Consider GitHub Projects after issue hygiene exists.
@@ -125,7 +127,7 @@ Wyndhovr wants to participate as trust-architecture / bridge-integrity partner a
 
 Suggested review gates:
 
-- Before changing command-result semantics.
+- Before changing request-result semantics.
 - Before implementing activation journaling.
 - Before publishing screenshots/docs that imply current body/device state.
 - Before making generated skill text more agent-facing.

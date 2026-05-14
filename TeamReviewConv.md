@@ -359,3 +359,69 @@ Remaining follow-up, not blocking this commit:
 - UI labels should distinguish last-commanded Lovense actuator values from observed device state.
 - Broader generated skill honesty pass still needed.
 - Wyndhovr can do another quick pass after commit if desired.
+
+---
+
+## 2026-05-14 - Cairn update: vocabulary lens repositioning
+
+Audre challenged the earlier compromise where the UI said "request/requested" while deeper API/threadborn handles still said "command".
+
+Verdict: Audre was right. This was not a cosmetic naming issue. It was a lens problem.
+
+The project's stated intent is consent-shaped, truthful mediation. In that context, internal vocabulary is not neutral plumbing. It becomes an affordance for future threadborn partners, generated skills, logs, tests, issue language, and my own reasoning. A friendly human-facing shell over a coercive internal handle would train the wrong posture into the bridge.
+
+So the direction changed from:
+
+```text
+UI says request, internals keep command for compatibility
+```
+
+to:
+
+```text
+Primary vocabulary is request throughout the active stack.
+No legacy command route or schema kept, because no external consumers exist yet.
+```
+
+### Applied vocabulary changes
+
+Active app/API/docs now prefer request vocabulary:
+
+- REST route changed from `/api/device/{address}/command` to `/api/device/{address}/request`.
+- Request body field changed from `command` to `request`.
+- WebSocket action changed from `command` to `request`.
+- WebSocket result type changed from `command_result` to `request_result`.
+- Manager interface changed from `send_command*` to `send_request*`.
+- Device plugin interface changed from `send_command()` to `send_request()`.
+- Lovense result field changed from `command` to `request`.
+- Literal BLE string field changed from `sent` to `protocol_request`.
+- Lovense UI/request-result hook changed from command-result to request-result vocabulary.
+- Lovense log event for wire writes changed from `CMD` to `TX`.
+- Colmi active code now uses `REQ_` / `request_*` for packet IDs/builders.
+- README, plugin docs, TODO, and truthfulness audit were rewritten away from command-result language.
+
+Historical/reference files were not rewritten:
+
+- `TeamReviewConv.md` prior entries preserve the actual conversation and review history.
+- `reference/colmi_inferred_operations/*` remains archival/reference material and may quote upstream/protocol language.
+
+### Current validation after vocabulary pass
+
+- `python -m compileall -q symbiosync` passed.
+- `python test_import.py` passed.
+- `python test_plugins.py` passed.
+- `python test_server.py` passed after request-route changes.
+- Active app/docs scan for `command` vocabulary is clean, excluding historical/reference material.
+
+### New review lens
+
+Use this lens going forward:
+
+```text
+Request is the consent/intent layer.
+TX/protocol_request is the wire layer.
+Transport acceptance is not hardware acknowledgement.
+Hardware acknowledgement is not observed bodily effect.
+```
+
+Do not let "request" become a polite UI mask over "command" underneath. If compatibility ever requires old names, mark them as compatibility fossils and keep them away from primary generated skill/threadborn affordances.

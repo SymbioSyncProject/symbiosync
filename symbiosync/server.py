@@ -79,7 +79,7 @@ app.mount("/static", StaticFiles(directory=str(_static_dir)), name="static")
 
 
 # ------------------------------------------------------------------
-# WebSocket: log streaming + command dispatch
+# WebSocket: log streaming + request dispatch
 # ------------------------------------------------------------------
 
 @app.websocket("/ws")
@@ -95,19 +95,19 @@ async def websocket_endpoint(ws: WebSocket):
         status = manager.get_status()
         await ws.send_json({"type": "status", "data": status})
 
-        # Bidirectional: send logs to client, receive commands from client
+        # Bidirectional: send logs to client, receive requests from client
         async def send_logs():
             while True:
                 entry = await log_queue.get()
                 if ws.client_state == WebSocketState.CONNECTED:
                     await ws.send_json({"type": "log", "entry": entry})
 
-        async def receive_commands():
+        async def receive_requests():
             while True:
                 data = await ws.receive_json()
-                await _handle_ws_command(ws, data)
+                await _handle_ws_request(ws, data)
 
-        await asyncio.gather(send_logs(), receive_commands())
+        await asyncio.gather(send_logs(), receive_requests())
     except WebSocketDisconnect:
         pass
     except Exception:
@@ -116,8 +116,8 @@ async def websocket_endpoint(ws: WebSocket):
         logger.unsubscribe(log_queue)
 
 
-async def _handle_ws_command(ws: WebSocket, data: dict):
-    """Handle incoming WebSocket commands from UI."""
+async def _handle_ws_request(ws: WebSocket, data: dict):
+    """Handle incoming WebSocket requests from UI."""
     action = data.get("action", "")
 
     if action == "scan":
@@ -140,19 +140,19 @@ async def _handle_ws_command(ws: WebSocket, data: dict):
         await manager.disconnect_device(addr)
         await ws.send_json({"type": "disconnect_result", "address": addr, "ok": True})
 
-    elif action == "command":
+    elif action == "request":
         addr = data.get("address", "")
-        cmd = data.get("command", "")
+        request_name = data.get("request", "")
         kwargs = data.get("params", {})
         if addr == "all":
-            result = await manager.send_command_all(cmd, **kwargs)
+            result = await manager.send_request_all(request_name, **kwargs)
         else:
-            result = await manager.send_command(addr, cmd, **kwargs)
-        await ws.send_json({"type": "command_result", "address": addr, "result": result})
+            result = await manager.send_request(addr, request_name, **kwargs)
+        await ws.send_json({"type": "request_result", "address": addr, "result": result})
 
     elif action == "stop_all":
         result = await manager.stop_all()
-        await ws.send_json({"type": "command_result", "address": "all", "result": result})
+        await ws.send_json({"type": "request_result", "address": "all", "result": result})
 
     elif action == "remember":
         addr = data.get("address", "")
@@ -205,7 +205,7 @@ async def api_biometrics_current(
     """
     for address, device in manager.devices.items():
         if device.device_type == "colmi" and device.connected:
-            result = await manager.send_command(
+            result = await manager.send_request(
                 address,
                 "current_biometrics",
                 include_spo2=include_spo2,
@@ -255,11 +255,11 @@ async def api_disconnect(address: str):
     return {"ok": True, "address": address.upper()}
 
 
-@app.post("/api/device/{address}/command")
-async def api_command(address: str, body: dict):
-    command = body.get("command", "")
+@app.post("/api/device/{address}/request")
+async def api_request(address: str, body: dict):
+    request = body.get("request", "")
     params = body.get("params", {})
-    result = await manager.send_command(address, command, **params)
+    result = await manager.send_request(address, request, **params)
     return result
 
 
@@ -423,7 +423,7 @@ def _build_skill_md(status: dict, host_override: str = "") -> str:
 
     The server writes the generic skeleton (what SymbioSync is, how to reach it,
     common endpoints). Each device plugin contributes its own section via
-    skill_section() -- commands, etiquette, intensity semantics, everything
+    skill_section() -- requests, etiquette, intensity semantics, everything
     specific to that device type.
     """
     if host_override:
@@ -448,7 +448,7 @@ def _build_skill_md(status: dict, host_override: str = "") -> str:
     for plugin_cls in DEVICE_PLUGINS:
         ptype = plugin_cls.device_type_name()
         plugin_devices = by_type.get(ptype, [])
-        # Generate section even if no devices connected (shows commands available)
+        # Generate section even if no devices connected (shows requests available)
         section = plugin_cls.skill_section(plugin_devices, base_url)
         if section:
             plugin_sections += section + "\n"
@@ -482,7 +482,7 @@ No data leaves the local network. No accounts. No telemetry.
 
 Base URL: `{base_url}`
 
-All endpoints accept and return JSON. Use POST for commands, GET for status.
+All endpoints accept and return JSON. Use POST for requests, GET for status.
 
 ### Common Endpoints
 
@@ -495,16 +495,16 @@ All endpoints accept and return JSON. Use POST for commands, GET for status.
 
 {_partnership_section()}{plugin_sections}{remembered_section}## Error Handling
 
-- If a device is not connected, commands return `{{"ok": false, "error": "not connected"}}`
+- If a device is not connected, requests return `{{"ok": false, "error": "not connected"}}`
 - If the server is unreachable, BLE may have dropped. Check `/status` first.
-- The `stop` command is best-effort. Inspect per-device results; transport acceptance is not hardware acknowledgement.
+- The `stop` request is best-effort. Inspect per-device results; transport acceptance is not hardware acknowledgement.
 
 ## Notes
 
 - This server runs locally. It is only reachable from the same machine or LAN.
 - BLE range is roughly 10 meters / 30 feet. Body occlusion reduces this.
 - The server auto-reconnects dropped devices when they come back in range.
-- All commands are logged locally. The human can see what you sent in the Logs tab.
+- All requests are logged locally. The human can see what you sent in the Logs tab.
 """
     return skill
 
@@ -517,9 +517,9 @@ All endpoints accept and return JSON. Use POST for commands, GET for status.
 async def legacy_vibrate(intensity: int, duration: float = Query(default=0.0)):
     if not (0 <= intensity <= 20):
         raise HTTPException(status_code=400, detail="Intensity must be 0-20")
-    result = await manager.send_command_all("vibrate", intensity=intensity, duration=duration)
+    result = await manager.send_request_all("vibrate", intensity=intensity, duration=duration)
     d = f"{duration}s" if duration > 0 else "indefinite"
-    return {"result": f"Vibration command attempted at {intensity}/20 ({d})", "devices": result}
+    return {"result": f"Vibration request attempted at {intensity}/20 ({d})", "devices": result}
 
 
 @app.post("/stop")
@@ -530,7 +530,7 @@ async def legacy_stop():
 
 @app.post("/preset/{pattern}")
 async def legacy_preset(pattern: str, duration: float = Query(default=10.0)):
-    result = await manager.send_command_all("pattern", name=pattern, duration=duration)
+    result = await manager.send_request_all("pattern", name=pattern, duration=duration)
     return {"result": f"Pattern '{pattern}' scheduled/attempted ({duration}s)", "devices": result}
 
 

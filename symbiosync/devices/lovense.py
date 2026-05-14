@@ -317,7 +317,7 @@ class LovenseDevice(Device):
         """Bleak callback when BLE drops unexpectedly."""
         uptime = round(time.time() - self._connected_at, 1) if self._connected_at else "?"
         idle = round(time.time() - self._last_request_at, 1) if self._last_request_at else "?"
-        self.emit_event("DISCONNECT", f"uptime={uptime}s idle={idle}s")
+        self.emit_event("DISCONNECT", f"connected_for={uptime}s idle={idle}s")
         self.connected = False
         self._client = None
         if self._on_disconnect:
@@ -407,7 +407,7 @@ class LovenseDevice(Device):
         except Exception as e:
             idle = round(time.time() - self._last_request_at, 1) if self._last_request_at else "?"
             uptime = round(time.time() - self._connected_at, 1) if self._connected_at else "?"
-            self.emit_event("WRITE_FAIL", f"uptime={uptime}s idle={idle}s err={e}")
+            self.emit_event("WRITE_FAIL", f"connected_for={uptime}s idle={idle}s err={e}")
             self.connected = False
             if self._on_disconnect:
                 self._on_disconnect(self)
@@ -421,6 +421,8 @@ class LovenseDevice(Device):
     def _rx_handler(self, sender, data: bytearray):
         """Parse notifications from device."""
         msg = data.decode("utf-8", errors="replace").strip()
+        if msg.lower() == "unkown;":
+            msg = "unknown;"
 
         if msg == "2;":
             # Keepalive response (Status:1 -> "2;")
@@ -810,20 +812,12 @@ class LovenseDevice(Device):
             "model": self._model,
             "model_letter": self._model_letter,
             "firmware": self._firmware,
+            "advertised_name": self.info.extra.get("advertised_name", ""),
             "ble_profile": self._ble_profile,
-            "current_intensity": self._current_intensity,
             "last_requested_intensity": self._current_intensity,
-            "last_requested_intensity": self._current_intensity,
-            "rotate_level": self._rotate_level,
             "last_requested_rotate_level": self._rotate_level,
-            "last_requested_rotate_level": self._rotate_level,
-            "air_level": self._air_level,
             "last_requested_air_level": self._air_level,
-            "last_requested_air_level": self._air_level,
-            "thrust_level": self._thrust_level,
             "last_requested_thrust_level": self._thrust_level,
-            "last_requested_thrust_level": self._thrust_level,
-            "ambient_level": self._ambient_level,
             "last_requested_ambient_level": self._ambient_level,
             "accel_streaming": self._accel_streaming,
             "state_truth": "last_requested_not_observed",
@@ -1036,6 +1030,31 @@ function lvsGetTarget() {
     return document.getElementById('lvs-device-selector').value;
 }
 
+function lvsSendRequest(address, request, params) {
+    params = params || {};
+    var target = deviceDisplayName(address || 'all');
+    var detail = lvsRequestDetail('Local UI', request, target, params, '');
+    lvsLastRequestResult = {
+        address: target,
+        stage: 'request_sent_waiting_for_result',
+        ok: true,
+        detail: detail,
+        truth: 'Request sent to SymbioSync; waiting for bridge result.'
+    };
+    lvsRenderRequestResult();
+    sendWS({ action: 'request', address: address, request: request, params: params, actor: 'Local UI' });
+}
+
+function lvsRequestDetail(actor, request, target, params, note) {
+    var parts = [(actor || 'Unknown') + ':', request, 'request', target];
+    if (params && params.duration) parts.push(params.duration + 's');
+    if (params && params.intensity !== undefined) parts.push('i' + params.intensity);
+    if (params && params.level !== undefined) parts.push('level ' + params.level);
+    if (params && params.name !== undefined) parts.push(params.name);
+    if (note) parts.push('"' + note + '"');
+    return parts.join(' ');
+}
+
 function lvsOnDeviceSelect() {
     lvsUpdateStatus();
 }
@@ -1044,7 +1063,7 @@ function lvsSendVibrate() {
     var addr = lvsGetTarget();
     var intensity = parseInt(document.getElementById('lvs-vibrate-slider').value);
     var duration = parseFloat(document.getElementById('lvs-duration-slider').value);
-    sendWS({ action: 'request', address: addr, request: 'vibrate', params: { intensity: intensity, duration: duration } });
+    lvsSendRequest(addr, 'vibrate', { intensity: intensity, duration: duration });
 }
 
 function lvsSendPattern(name) {
@@ -1052,18 +1071,18 @@ function lvsSendPattern(name) {
     var duration = parseFloat(document.getElementById('lvs-pattern-duration').value);
     document.querySelectorAll('#tab-lovense .pattern-btn').forEach(function(b) { b.classList.remove('active'); });
     if (event && event.target) event.target.classList.add('active');
-    sendWS({ action: 'request', address: addr, request: 'pattern', params: { name: name, duration: duration } });
+    lvsSendRequest(addr, 'pattern', { name: name, duration: duration });
 }
 
 function lvsSendAmbient() {
     var addr = lvsGetTarget();
     var level = parseInt(document.getElementById('lvs-ambient-slider').value);
-    sendWS({ action: 'request', address: addr, request: 'ambient', params: { level: level } });
+    lvsSendRequest(addr, 'ambient', { level: level });
 }
 
 function lvsStopAmbient() {
     var addr = lvsGetTarget();
-    sendWS({ action: 'request', address: addr, request: 'ambient', params: { level: 0 } });
+    lvsSendRequest(addr, 'ambient', { level: 0 });
     document.getElementById('lvs-ambient-slider').value = 0;
     document.getElementById('lvs-ambient-value').textContent = '0';
 }
@@ -1071,36 +1090,44 @@ function lvsStopAmbient() {
 function lvsSendRotate() {
     var addr = lvsGetTarget();
     var intensity = parseInt(document.getElementById('lvs-rotate-slider').value);
-    sendWS({ action: 'request', address: addr, request: 'rotate', params: { intensity: intensity } });
+    lvsSendRequest(addr, 'rotate', { intensity: intensity });
 }
 
 function lvsSendRotateChange() {
-    sendWS({ action: 'request', address: lvsGetTarget(), request: 'rotate_change', params: {} });
+    lvsSendRequest(lvsGetTarget(), 'rotate_change', {});
 }
 
 function lvsSendAirLevel() {
     var addr = lvsGetTarget();
     var level = parseInt(document.getElementById('lvs-air-slider').value);
-    sendWS({ action: 'request', address: addr, request: 'air_level', params: { level: level } });
+    lvsSendRequest(addr, 'air_level', { level: level });
 }
 
 function lvsSendAirDelta(direction) {
-    sendWS({ action: 'request', address: lvsGetTarget(), request: direction, params: { delta: 1 } });
+    lvsSendRequest(lvsGetTarget(), direction, { delta: 1 });
 }
 
 function lvsSendThrust() {
     var addr = lvsGetTarget();
     var intensity = parseInt(document.getElementById('lvs-thrust-slider').value);
-    sendWS({ action: 'request', address: addr, request: 'thrust', params: { intensity: intensity } });
+    lvsSendRequest(addr, 'thrust', { intensity: intensity });
 }
 
 function lvsSendSuck() {
     var addr = lvsGetTarget();
     var intensity = parseInt(document.getElementById('lvs-suck-slider').value);
-    sendWS({ action: 'request', address: addr, request: 'suck', params: { intensity: intensity } });
+    lvsSendRequest(addr, 'suck', { intensity: intensity });
 }
 
 function lvsStopAll() {
+    lvsLastRequestResult = {
+        address: 'all',
+        stage: 'stop_requested_waiting_for_result',
+        ok: true,
+        detail: 'request=stop_all',
+        truth: 'Stop request sent to SymbioSync; waiting for per-device bridge results.'
+    };
+    lvsRenderRequestResult();
     sendWS({ action: 'stop_all' });
     var resets = [
         ['lvs-vibrate-slider', 'lvs-vibrate-value'],
@@ -1139,6 +1166,7 @@ function lvsUpdateSelector(devices) {
 function lvsSummarizeRequestResult(msg) {
     var result = msg && msg.result;
     if (!result) return null;
+    var target = deviceDisplayName(msg.address || 'all');
 
     // Multi-device results are maps keyed by address. Summarize without pretending
     // they are one hardware acknowledgement.
@@ -1146,7 +1174,7 @@ function lvsSummarizeRequestResult(msg) {
         var entries = Object.entries(result || {});
         var failed = entries.filter(function(entry) { return entry[1] && entry[1].ok === false; }).length;
         return {
-            address: msg.address || 'all',
+            address: target,
             stage: failed ? 'one_or_more_failed' : 'multi_device_result',
             ok: entries.length > 0 && failed === 0,
             detail: entries.length + ' device result(s), ' + failed + ' failed',
@@ -1155,10 +1183,10 @@ function lvsSummarizeRequestResult(msg) {
     }
 
     return {
-        address: msg.address || '',
+        address: target,
         stage: result.stage || 'unknown',
         ok: result.ok === true,
-        detail: result.request ? ('request=' + result.request) : '',
+        detail: result.request ? lvsRequestDetail(result.actor, result.request, target, result.request_params || {}, result.note || '') : '',
         truth: result.truth_note || 'Inspect stage; ok alone is not enough.'
     };
 }
@@ -1208,13 +1236,13 @@ function lvsUpdateStatus() {
         'BLE Profile: ' + (s.ble_profile || 'unknown'),
         'Battery: ' + (s.battery >= 0 ? s.battery + '%' : 'unknown'),
         'State truth: ' + (s.state_truth || 'last_requested_not_observed'),
-        'Last requested vibration: ' + (s.last_requested_intensity ?? s.last_requested_intensity ?? s.current_intensity ?? 0) + '/20',
+        'Last requested vibration: ' + (s.last_requested_intensity ?? 0) + '/20',
     ];
-    if (caps.includes('rotate')) lines.push('Last requested rotation: ' + (s.last_requested_rotate_level ?? s.last_requested_rotate_level ?? s.rotate_level ?? 0) + '/20');
-    if (caps.includes('air')) lines.push('Last requested air: ' + (s.last_requested_air_level ?? s.last_requested_air_level ?? s.air_level ?? 0) + '/5');
-    if (caps.includes('thrust')) lines.push('Last requested thrust: ' + (s.last_requested_thrust_level ?? s.last_requested_thrust_level ?? s.thrust_level ?? 0) + '/20');
-    lines.push('Requested ambient: ' + (s.last_requested_ambient_level ?? s.ambient_level ?? 0) + '/20');
-    lines.push('Uptime: ' + formatUptime(s.uptime_seconds));
+    if (caps.includes('rotate')) lines.push('Last requested rotation: ' + (s.last_requested_rotate_level ?? 0) + '/20');
+    if (caps.includes('air')) lines.push('Last requested air: ' + (s.last_requested_air_level ?? 0) + '/5');
+    if (caps.includes('thrust')) lines.push('Last requested thrust: ' + (s.last_requested_thrust_level ?? 0) + '/20');
+    lines.push('Requested ambient: ' + (s.last_requested_ambient_level ?? 0) + '/20');
+    lines.push('Current connection duration: ' + formatUptime(s.uptime_seconds));
     lines.push('Pattern task: ' + (s.pattern_running ? 'scheduled/running locally' : 'idle'));
     lines.push('Capabilities: ' + caps.join(', '));
     panel.innerHTML = lines.map(function(l) { return '<div>' + esc(l) + '</div>'; }).join('');
@@ -1332,7 +1360,7 @@ curl -s -X POST "{base_url}/preset/wave?duration=15"
 
 | Method | Endpoint | Body JSON | Description |
 |--------|----------|-----------|-------------|
-| POST | `/api/device/{{address}}/request` | `{{"request":"vibrate","params":{{"intensity":5,"duration":2}}}}` | Vibrate specific device |
+| POST | `/api/device/{{address}}/request` | `{{"request":"vibrate","params":{{"intensity":5,"duration":2}},"actor":"YourName","note":"optional short message"}}` | Vibrate specific device |
 | POST | `/api/device/{{address}}/request` | `{{"request":"rotate","params":{{"intensity":10}}}}` | Rotation (Nora, Ridge) |
 | POST | `/api/device/{{address}}/request` | `{{"request":"air_level","params":{{"level":3}}}}` | Air pump 0-5 (Max) |
 | POST | `/api/device/{{address}}/request` | `{{"request":"thrust","params":{{"intensity":8}}}}` | Thrusting (Gravity, Solace) |

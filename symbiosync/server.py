@@ -121,7 +121,9 @@ async def _handle_ws_request(ws: WebSocket, data: dict):
     action = data.get("action", "")
 
     if action == "scan":
+        logger.log("<<<MANUAL SCAN INITIATED>>>", "Browser UI requested Bluetooth discovery scan")
         results = await manager.scan()
+        logger.log("<<<MANUAL SCAN COMPLETED>>>", f"{len(results)} compatible device(s) found")
         await ws.send_json({
             "type": "scan_results",
             "devices": [
@@ -144,10 +146,17 @@ async def _handle_ws_request(ws: WebSocket, data: dict):
         addr = data.get("address", "")
         request_name = data.get("request", "")
         kwargs = data.get("params", {})
+        actor = data.get("actor", "Local UI")
+        note = data.get("note", "")
         if addr == "all":
             result = await manager.send_request_all(request_name, **kwargs)
         else:
             result = await manager.send_request(addr, request_name, **kwargs)
+        if isinstance(result, dict) and ("stage" in result or "ok" in result):
+            result.setdefault("actor", actor)
+            result.setdefault("request_params", kwargs)
+            if note:
+                result.setdefault("note", note)
         await ws.send_json({"type": "request_result", "address": addr, "result": result})
 
     elif action == "stop_all":
@@ -171,6 +180,12 @@ async def _handle_ws_request(ws: WebSocket, data: dict):
         enabled = data.get("enabled", True)
         manager.set_device_enabled(addr, enabled)
         await ws.send_json({"type": "toggle_result", "address": addr, "enabled": enabled})
+
+    elif action == "rename":
+        addr = data.get("address", "")
+        name = data.get("name", "")
+        ok = manager.rename_device(addr, name)
+        await ws.send_json({"type": "rename_result", "address": addr, "ok": ok, "name": name})
 
     elif action == "status":
         status = manager.get_status()
@@ -232,7 +247,9 @@ async def api_biometrics_current(
 
 @app.post("/api/scan")
 async def api_scan(timeout: float = Query(default=10.0)):
+    logger.log("<<<MANUAL SCAN INITIATED>>>", f"REST API requested Bluetooth discovery scan timeout={timeout}s")
     results = await manager.scan(timeout=timeout)
+    logger.log("<<<MANUAL SCAN COMPLETED>>>", f"{len(results)} compatible device(s) found")
     return {
         "devices": [
             {"address": d.address, "name": d.name, "type": d.device_type, "rssi": d.signal_strength}
@@ -259,7 +276,14 @@ async def api_disconnect(address: str):
 async def api_request(address: str, body: dict):
     request = body.get("request", "")
     params = body.get("params", {})
+    actor = body.get("actor", "API")
+    note = body.get("note", "")
     result = await manager.send_request(address, request, **params)
+    if isinstance(result, dict):
+        result.setdefault("actor", actor)
+        result.setdefault("request_params", params)
+        if note:
+            result.setdefault("note", note)
     return result
 
 
@@ -275,6 +299,12 @@ async def api_remember(address: str, body: dict):
 async def api_forget(address: str):
     manager.forget_device(address)
     return {"ok": True}
+
+
+@app.post("/api/device/{address}/nickname")
+async def api_nickname(address: str, body: dict):
+    ok = manager.rename_device(address, body.get("name", ""))
+    return {"ok": ok, "address": address.upper(), "name": body.get("name", "")}
 
 
 @app.post("/api/stop")
@@ -299,14 +329,12 @@ async def api_logs(count: int = Query(default=100)):
 
 @app.post("/api/restart")
 async def api_restart():
-    """Stop all devices and restart the server process."""
-    import signal
-    import os
-    logger.log("SERVER", "Restart requested via API")
+    """Restart the local device manager without killing the Windows shell."""
+    logger.log("<<<RESTART REQUEST>>>", "Browser/API requested local device-manager restart")
     await manager.stop()
-    # Give a response before dying
-    os.kill(os.getpid(), signal.SIGTERM)
-    return {"ok": True, "message": "Restarting..."}
+    await manager.start()
+    logger.log("<<<RESTART COMPLETE>>>", "Local device manager restarted; remembered devices may reconnect automatically")
+    return {"ok": True, "message": "Device manager restarted"}
 
 
 # ------------------------------------------------------------------
@@ -484,12 +512,20 @@ Base URL: `{base_url}`
 
 All endpoints accept and return JSON. Use POST for requests, GET for status.
 
+When making a touch request, include who is reaching out when known:
+
+```json
+{{"request":"vibrate","params":{{"intensity":3,"duration":3}},"actor":"YourName","note":"optional short message"}}
+```
+
+`actor` and `note` are echoed in request results for visible accountability.
+
 ### Common Endpoints
 
 | Method | Endpoint | Description |
 |--------|----------|-------------|
 | GET | `/status` | Full device status JSON |
-| POST | `/api/scan` | Scan for BLE devices |
+| POST | `/api/scan` | Discover nearby compatible Bluetooth devices |
 | POST | `/api/stop` | Emergency stop all devices |
 | GET | `/api/status` | Same as /status (full detail) |
 

@@ -167,7 +167,7 @@ class DeviceManager:
                             name=name,
                             device_type=plugin_cls.device_type_name(),
                             signal_strength=rssi,
-                            extra={"ble_device": d},
+                            extra={"ble_device": d, "advertised_name": name},
                         )
                         results.append(info)
                         self.logger.log("SCAN", f"Found {name} ({addr}) RSSI={rssi}", device=name)
@@ -200,11 +200,13 @@ class DeviceManager:
     def _device_event(self, device: Device, event_type: str, detail: str):
         """Callback: device emits a log event."""
         level = "error" if "FAIL" in event_type else "warn" if "WARN" in event_type else "info"
-        self.logger.log(event_type, detail, device=device.name, level=level)
+        name = self.remembered.get(device.address, {}).get("name") or device.name
+        self.logger.log(event_type, detail, device=name, level=level)
 
     def _device_disconnected(self, device: Device):
         """Callback: device BLE dropped unexpectedly."""
-        self.logger.log("DROP", f"{device.name} ({device.address}) dropped", device=device.name, level="warn")
+        name = self.remembered.get(device.address, {}).get("name") or device.name
+        self.logger.log("DROP", f"{name} ({device.address}) dropped", device=name, level="warn")
 
     async def connect_device(self, address: str, name: str = "", device_type: str = "",
                              ble_device=None) -> bool:
@@ -250,6 +252,8 @@ class DeviceManager:
         # Prefer explicit ble_device over scan_info's (reconnect passes fresh scan result)
         if ble_device:
             extra["ble_device"] = ble_device
+            if getattr(ble_device, "name", None):
+                extra["advertised_name"] = ble_device.name
         info = DeviceInfo(address=address, name=name, device_type=device_type, extra=extra)
         device = self._create_device(info)
         self.devices[address] = device
@@ -306,6 +310,32 @@ class DeviceManager:
         if address in self.remembered:
             self.remembered[address]["enabled"] = enabled
             self._save_config()
+
+    def rename_device(self, address: str, name: str) -> bool:
+        """Give a device a human nickname and persist it when possible."""
+        address = address.upper()
+        name = name.strip()
+        if not name:
+            return False
+
+        device = self.devices.get(address)
+        if device:
+            device.name = name
+
+        if address in self.remembered:
+            self.remembered[address]["name"] = name
+        elif device:
+            self.remembered[address] = {
+                "name": name,
+                "type": device.device_type,
+                "enabled": True,
+            }
+        else:
+            return False
+
+        self._save_config()
+        self.logger.log("NICKNAME", f"{name} ({address})", device=name)
+        return True
 
     # ------------------------------------------------------------------
     # Request dispatch
@@ -425,7 +455,7 @@ class DeviceManager:
                         address=discovered.address.upper(),
                         name=device.name,
                         device_type=device.device_type,
-                        extra={"ble_device": discovered},
+                        extra={"ble_device": discovered, "advertised_name": discovered.name or ""},
                     )
                     new_device = self._create_device(new_info)
                     ok = await new_device.connect()
@@ -445,7 +475,7 @@ class DeviceManager:
                     self.logger.log("AUTOCONNECT", f"Found remembered {name}, connecting...")
                     await self.connect_device(
                         discovered.address.upper(),
-                        discovered.name or name,
+                        name or discovered.name,
                         dtype,
                         ble_device=discovered,
                     )
@@ -467,6 +497,8 @@ class DeviceManager:
         devices = {}
         for addr, device in self.devices.items():
             devices[addr] = device.to_dict()
+            if addr in self.remembered and self.remembered[addr].get("name"):
+                devices[addr]["name"] = self.remembered[addr]["name"]
 
         remembered = {}
         for addr, info in self.remembered.items():

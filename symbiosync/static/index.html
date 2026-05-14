@@ -16,16 +16,17 @@
             <span class="version" id="version">v0.1.0-alpha</span>
         </div>
         <div class="connection-indicator">
-            <div class="indicator-dot" id="ws-indicator"></div>
-            <span id="ws-status">Connecting...</span>
-            <span class="sep">|</span>
             <span id="device-count">0 devices</span>
             <span class="sep">|</span>
-            <button class="btn btn-danger btn-small" onclick="restartServer()">Restart</button>
+            <div class="indicator-dot" id="ws-indicator" title="Server status unknown"></div>
+            <span id="ws-status" title="Server status unknown">Server connecting...</span>
+            <button class="btn btn-danger btn-small" onclick="restartServer()"
+                title="Restart the local SymbioSync device manager inside the running Python server. This disconnects and reinitializes device sessions and background reconnect tasks, but does not change plugin configuration or remembered devices.">Restart Server</button>
         </div>
     </div>
     <nav class="tabs" id="tab-bar">
         <button class="tab active" data-tab="connect">Connect</button>
+        <button class="tab" data-tab="scan">Scan Discovery</button>
         <!-- Plugin tabs injected dynamically here -->
         <button class="tab" data-tab="logs">Logs</button>
         <button class="tab" data-tab="companions">Companions</button>
@@ -35,20 +36,6 @@
 
 <!-- ============ CONNECT TAB ============ -->
 <div class="tab-content active" id="tab-connect">
-
-    <!-- Scan -->
-    <div class="card">
-        <div class="card-header">
-            <span class="card-title">Scan for Devices</span>
-            <button class="btn btn-primary" id="btn-scan" onclick="doScan()">Scan</button>
-        </div>
-        <div id="scan-results" class="scan-results">
-            <div class="empty-state">
-                <div class="empty-state-icon">&#x1F50E;</div>
-                <div>Click Scan to search for BLE devices</div>
-            </div>
-        </div>
-    </div>
 
     <!-- Remembered Devices -->
     <div class="card">
@@ -76,6 +63,35 @@
         </div>
     </div>
 
+</div>
+
+<!-- ============ SCAN TAB ============ -->
+<div class="tab-content" id="tab-scan">
+    <div class="card">
+        <div class="card-header">
+            <span class="card-title">Manual Bluetooth Device Discovery Scan</span>
+            <button class="btn btn-primary" id="btn-scan-panel" onclick="doScan()">Scan Now</button>
+        </div>
+        <p style="font-size: 0.85rem; color: var(--text-secondary); margin-bottom: 12px;">
+            This discovers nearby compatible Bluetooth devices, whether new or already remembered.
+            It does not reconnect by itself. Use Connect from Remembered Devices for a known device,
+            or Remember a scan result so it can be connected later.
+            Open the Logs tab if you want to see scan activity.
+        </p>
+        <div class="notice-warn">
+            Manual discovery scan is a future addition undergoing testing. It currently does not work reliably in all Windows/Bluetooth states.
+            If you are trying to catch a newly powered-on device, restarting the whole local server may still be the only reliable path right now.
+        </div>
+        <div id="scan-status" style="font-size: 0.8rem; color: var(--text-dim); margin-bottom: 8px;">
+            No discovery scan has run this session.
+        </div>
+        <div id="scan-results" class="scan-results">
+            <div class="empty-state">
+                <div class="empty-state-icon">&#x1F50E;</div>
+                <div>Click Scan Now to search for Bluetooth devices that are in range and connectable. You should check the Logs tab to monitor actual scan activity.</div>
+            </div>
+        </div>
+    </div>
 </div>
 
 <!-- Plugin tabs are injected dynamically between Connect and Logs -->

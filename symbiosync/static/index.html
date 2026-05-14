@@ -19,9 +19,9 @@
             <span id="device-count">0 devices</span>
             <span class="sep">|</span>
             <div class="indicator-dot" id="ws-indicator" title="Server status unknown"></div>
-            <span id="ws-status" title="Server status unknown">Server connecting...</span>
+            <span id="ws-status" title="Server reachability unknown">Checking local server...</span>
             <button class="btn btn-danger btn-small" onclick="restartServer()"
-                title="Restart the local SymbioSync device manager inside the running Python server. This disconnects and reinitializes device sessions and background reconnect tasks, but does not change plugin configuration or remembered devices.">Restart Server</button>
+                title="Restart the local SymbioSync device manager inside the running Python server. This disconnects and reinitializes device sessions and background reconnect tasks, but does not change plugin configuration or remembered devices.">Restart Device Manager</button>
         </div>
     </div>
     <nav class="tabs" id="tab-bar">
@@ -73,14 +73,14 @@
             <button class="btn btn-primary" id="btn-scan-panel" onclick="doScan()">Scan Now</button>
         </div>
         <p style="font-size: 0.85rem; color: var(--text-secondary); margin-bottom: 12px;">
-            This discovers nearby compatible Bluetooth devices, whether new or already remembered.
+            This attempts to discover nearby compatible Bluetooth devices, whether new or already remembered.
             It does not reconnect by itself. Use Connect from Remembered Devices for a known device,
             or Remember a scan result so it can be connected later.
             Open the Logs tab if you want to see scan activity.
         </p>
         <div class="notice-warn">
             Manual discovery scan is a future addition undergoing testing. It currently does not work reliably in all Windows/Bluetooth states.
-            If you are trying to catch a newly powered-on device, restarting the whole local server may still be the only reliable path right now.
+            If you are trying to catch a newly powered-on device, restarting the device manager may still be the only reliable path right now.
         </div>
         <div id="scan-status" style="font-size: 0.8rem; color: var(--text-dim); margin-bottom: 8px;">
             No discovery scan has run this session.

@@ -45,18 +45,41 @@ function sendWS(data) {
     }
 }
 
+async function refreshStatus() {
+    try {
+        const resp = await fetch('/api/status', { cache: 'no-store' });
+        if (!resp.ok) throw new Error('status ' + resp.status);
+        const data = await resp.json();
+        updateDeviceState(data);
+        setWSStatus('connected');
+    } catch (e) {
+        if (!ws || ws.readyState !== WebSocket.OPEN) {
+            setWSStatus('disconnected');
+        }
+    }
+}
+
 function setWSStatus(state) {
     const dot = document.getElementById('ws-indicator');
     const text = document.getElementById('ws-status');
+    const connectedTitle = 'Server connected: the browser can reach the local SymbioSync Python server and /api/status is responding. This does not prove Bluetooth delivery or device hardware acknowledgement.';
+    const scanningTitle = 'Server connected and a Bluetooth discovery scan was requested. Manual discovery is still experimental; check Logs for scan activity.';
+    const reconnectingTitle = 'Server reconnecting: the browser cannot currently confirm the local SymbioSync Python server is reachable. Device/plugin configuration is not implied.';
     if (state === 'connected') {
         dot.className = 'indicator-dot connected';
-        text.textContent = 'Connected';
+        text.textContent = 'Server connected';
+        dot.title = connectedTitle;
+        text.title = connectedTitle;
     } else if (state === 'scanning') {
         dot.className = 'indicator-dot scanning';
-        text.textContent = 'Scanning...';
+        text.textContent = 'Server scanning...';
+        dot.title = scanningTitle;
+        text.title = scanningTitle;
     } else {
-        dot.className = 'indicator-dot';
-        text.textContent = 'Reconnecting...';
+        dot.className = 'indicator-dot reconnecting';
+        text.textContent = 'Server reconnecting...';
+        dot.title = reconnectingTitle;
+        text.title = reconnectingTitle;
     }
 }
 
@@ -77,14 +100,19 @@ function handleMessage(msg) {
             break;
         case 'scan_results':
             renderScanResults(msg.devices);
-            document.getElementById('btn-scan').textContent = 'Scan';
-            document.getElementById('btn-scan').disabled = false;
+            [document.getElementById('btn-scan'), document.getElementById('btn-scan-panel')]
+                .filter(Boolean)
+                .forEach(btn => {
+                    btn.textContent = 'Scan Now';
+                    btn.disabled = false;
+                });
             break;
         case 'connect_result':
         case 'disconnect_result':
         case 'remember_result':
         case 'forget_result':
         case 'toggle_result':
+        case 'rename_result':
         case 'request_result':
             if (msg.type === 'request_result') {
                 window._pluginRequestResultHooks.forEach(function(hook) {
@@ -252,22 +280,30 @@ async function togglePlugin(pluginType) {
 // ------------------------------------------------------------------
 
 function doScan() {
-    const btn = document.getElementById('btn-scan');
-    btn.textContent = 'Scanning...';
-    btn.disabled = true;
+    const status = document.getElementById('scan-status');
+    if (status) status.textContent = 'Discovery scan requested. Waiting for scan results...';
+    [document.getElementById('btn-scan-panel')]
+        .filter(Boolean)
+        .forEach(btn => {
+            btn.textContent = 'Scanning...';
+            btn.disabled = true;
+        });
     setWSStatus('scanning');
     sendWS({ action: 'scan' });
 }
 
 function renderScanResults(devices) {
     const container = document.getElementById('scan-results');
+    const status = document.getElementById('scan-status');
     if (!devices || devices.length === 0) {
-        container.innerHTML = '<div class="empty-state"><div>No compatible devices found. Make sure your device is on and in range.</div></div>';
+        if (status) status.textContent = 'Discovery scan completed: no compatible devices found.';
+        container.innerHTML = '<div class="empty-state"><div>No compatible Bluetooth devices found. Make sure your device is on, in range, connectable, and not already held by another app. Check the Logs tab for scan activity.</div></div>';
         setWSStatus('connected');
         return;
     }
 
     setWSStatus('connected');
+    if (status) status.textContent = `Discovery scan completed: ${devices.length} compatible device(s) found.`;
     container.innerHTML = devices.map(d => `
         <div class="scan-item">
             <div class="device-info">
@@ -305,6 +341,20 @@ function forgetDevice(addr) {
 
 function toggleEnabled(addr, enabled) {
     sendWS({ action: 'toggle_enabled', address: addr, enabled: enabled });
+}
+
+function deviceDisplayName(addr) {
+    const device = (deviceState.devices || {})[addr];
+    const remembered = (deviceState.remembered || {})[addr];
+    return (device && device.name) || (remembered && remembered.name) || addr;
+}
+
+function nicknameDevice(addr) {
+    const currentName = deviceDisplayName(addr);
+    const name = prompt('Nickname for this device:', currentName || '');
+    if (!name || !name.trim()) return;
+    sendWS({ action: 'rename', address: addr, name: name.trim() });
+    setTimeout(refreshStatus, 250);
 }
 
 // ------------------------------------------------------------------
@@ -371,13 +421,14 @@ function renderRemembered(remembered) {
                 <div class="device-info">
                     <div class="device-name">${esc(info.name || addr)}</div>
                     <div class="device-meta">${esc(addr)} / ${esc(info.type || 'unknown')}
-                        <span class="badge ${isConnected ? 'badge-connected' : 'badge-disconnected'}">
+                        <span class="${isConnected ? 'status-text-connected' : 'badge badge-disconnected'}">
                             ${isConnected ? 'Connected' : 'Disconnected'}
                         </span>
                     </div>
                 </div>
                 <div class="device-actions">
-                    <label class="toggle" title="${info.enabled !== false ? 'Auto-connect enabled' : 'Auto-connect disabled'}">
+                    <span class="toggle-label" title="Auto-connect controls whether SymbioSync should try to reconnect this remembered device automatically.">Auto-connect</span>
+                    <label class="toggle" title="Auto-connect controls whether SymbioSync should try to reconnect this remembered device automatically. Currently ${info.enabled !== false ? 'enabled' : 'disabled'}.">
                         <input type="checkbox" ${info.enabled !== false ? 'checked' : ''}
                             onchange="toggleEnabled('${esc(addr)}', this.checked)">
                         <span class="toggle-slider"></span>
@@ -386,6 +437,7 @@ function renderRemembered(remembered) {
                         ? `<button class="btn btn-small" onclick="disconnectDevice('${esc(addr)}')">Disconnect</button>`
                         : `<button class="btn btn-primary btn-small" title="If device does not connect, try cycling its power" onclick="connectDevice('${esc(addr)}')">Connect</button>`
                     }
+                    <button class="btn btn-small" onclick="nicknameDevice('${esc(addr)}')">Nickname</button>
                     <button class="btn btn-danger btn-small" onclick="forgetDevice('${esc(addr)}')">Forget</button>
                 </div>
             </div>
@@ -406,14 +458,18 @@ function renderConnected(devices) {
             <div class="device-info">
                 <div class="device-name">${esc(d.name)}</div>
                 <div class="device-meta">${esc(addr)} / ${esc(d.device_type)}
-                    ${d.status.battery >= 0 ? `<span style="margin-left: 8px;">&#x1F50B; ${d.status.battery}%</span>` : ''}
-                    ${d.status.model ? `<span style="margin-left: 8px;">${esc(d.status.model)}</span>` : ''}
+                    ${d.status.battery >= 0 ? `<span style="margin-left: 8px;">Battery: ${d.status.battery}%</span>` : ''}
+                    ${d.status.advertised_name && d.status.advertised_name !== d.name ? `<span style="margin-left: 8px;">BLE name: ${esc(d.status.advertised_name)}</span>` : ''}
+                    ${d.status.model ? `<span style="margin-left: 8px;">Model: ${esc(d.status.model)}</span>` : ''}
+                    ${d.status.model_letter ? `<span style="margin-left: 8px;">Model code: ${esc(d.status.model_letter)}</span>` : ''}
+                    ${d.status.firmware ? `<span style="margin-left: 8px;">Firmware: ${esc(d.status.firmware)}</span>` : ''}
                 </div>
             </div>
             <div class="device-actions">
-                <span style="font-size: 0.8rem; color: var(--text-dim);">
-                    ${formatUptime(d.status.uptime_seconds)}
+                <span style="font-size: 0.8rem; color: var(--text-dim);" title="Current connection duration: time since this device last connected to SymbioSync.">
+                    Connected for ${formatUptime(d.status.uptime_seconds)}
                 </span>
+                <button class="btn btn-small" onclick="nicknameDevice('${esc(addr)}')">Nickname</button>
                 <button class="btn btn-small" onclick="disconnectDevice('${esc(addr)}')">Disconnect</button>
             </div>
         </div>
@@ -608,11 +664,16 @@ async function copySkill() {
 // Server restart
 // ------------------------------------------------------------------
 
-function restartServer() {
+async function restartServer() {
     if (!confirm('Stop all devices and restart the server?')) return;
-    fetch('/api/restart', { method: 'POST' }).catch(() => {});
-    setWSStatus('disconnected');
-    document.getElementById('ws-status').textContent = 'Server stopping...';
+    document.getElementById('ws-status').textContent = 'Server restarting manager...';
+    try {
+        await fetch('/api/restart', { method: 'POST' });
+    } catch (e) {
+        setWSStatus('disconnected');
+        return;
+    }
+    setTimeout(refreshStatus, 500);
 }
 
 // ------------------------------------------------------------------
@@ -637,5 +698,8 @@ loadPlugins().then(() => {
 
 // Periodically request status update
 setInterval(() => {
-    sendWS({ action: 'status' });
+    refreshStatus();
 }, 5000);
+
+// REST status heartbeat keeps the header truthful even if the WebSocket is stale.
+setTimeout(refreshStatus, 500);

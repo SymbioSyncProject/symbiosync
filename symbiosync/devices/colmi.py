@@ -741,7 +741,7 @@ class ColmiDevice(Device):
 
     def _handle_disconnect(self, client: BleakClient):
         """Bleak callback when BLE drops unexpectedly."""
-        self.emit_event("RING_DROP", f"BLE disconnected (uptime={round(time.time() - self._connect_time, 1)}s)")
+        self.emit_event("RING_DROP", f"BLE disconnected (connected_for={round(time.time() - self._connect_time, 1)}s)")
         self.connected = False
         self._client = None
         self._heart_rate = 0
@@ -916,6 +916,7 @@ class ColmiDevice(Device):
             "calories": self._calories,
             "distance": self._distance,
             "battery": self._battery,
+            "advertised_name": self.info.extra.get("advertised_name", ""),
             "charging": self._charging,
             "threshold": self._threshold,
             "last_hr_seconds_ago": round(now - self._last_hr, 1) if self._last_hr else None,
@@ -1444,7 +1445,7 @@ class ColmiDevice(Device):
                     <span id="colmi-battery" style="font-weight: 600;">--</span>
                 </div>
                 <div style="display: flex; justify-content: space-between; margin-bottom: 8px;">
-                    <span style="color: var(--text-dim);">Uptime</span>
+                    <span style="color: var(--text-dim);" title="Time since the ring last connected to SymbioSync.">Connected for</span>
                     <span id="colmi-uptime" style="font-weight: 600;">--</span>
                 </div>
                 <div style="display: flex; justify-content: space-between;">

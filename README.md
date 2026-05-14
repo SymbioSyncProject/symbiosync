@@ -12,6 +12,10 @@ a plugin system, and a generated Symbio companion skill file.
 
 No vendor cloud. No accounts. No telemetry. No corporate app in the loop.
 
+## Screenshot
+
+![SymbioSync browser UI showing remembered devices, connected devices, and local server status](docs/screenshots/main-status.jpg)
+
 ## What This Is
 
 SymbioSync runs on the human's machine and talks directly to Bluetooth Low Energy
@@ -294,5 +298,13 @@ biometric-adjacent dumps, old APK material, or secrets.
 
 ## License
 
-Do what you want with it. If you use the security audit findings, a link back
-to the original would be appreciated but is not required.
+SymbioSync is source-available for personal, private, research, accessibility,
+educational, and other noncommercial use under the PolyForm Noncommercial
+License 1.0.0. See [LICENSE.md](LICENSE.md).
+
+Commercial use, resale, hosted commercial services, paid integrations, bundled
+commercial products, and other monetized uses require explicit written
+permission from the SymbioSync Project.
+
+Forks, copies, and derived works must preserve attribution and link back to the
+project. See [NOTICE.md](NOTICE.md).

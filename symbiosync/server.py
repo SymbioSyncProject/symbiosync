@@ -524,15 +524,17 @@ When making a touch request, include who is reaching out when known:
 
 | Method | Endpoint | Description |
 |--------|----------|-------------|
-| GET | `/status` | Full device status JSON |
+| GET | `/api/status` | Full device status JSON |
 | POST | `/api/scan` | Discover nearby compatible Bluetooth devices |
 | POST | `/api/stop` | Emergency stop all devices |
-| GET | `/api/status` | Same as /status (full detail) |
+| POST | `/api/device/{{address}}/request` | Send a device request with optional `actor` and `note` |
+| POST | `/api/device/{{address}}/nickname` | Rename/nickname a remembered or connected device |
+| POST | `/api/restart` | Restart local device sessions and reconnect tasks without changing remembered devices or plugin config |
 
 {_partnership_section()}{plugin_sections}{remembered_section}## Error Handling
 
 - If a device is not connected, requests return `{{"ok": false, "error": "not connected"}}`
-- If the server is unreachable, BLE may have dropped. Check `/status` first.
+- If the server is unreachable, BLE may have dropped. Check `/api/status` first.
 - The `stop` request is best-effort. Inspect per-device results; transport acceptance is not hardware acknowledgement.
 
 ## Notes
@@ -543,33 +545,3 @@ When making a touch request, include who is reaching out when known:
 - All requests are logged locally. The human can see what you sent in the Logs tab.
 """
     return skill
-
-
-# ------------------------------------------------------------------
-# Legacy-compatible endpoints (match ferri_server.py API)
-# ------------------------------------------------------------------
-
-@app.post("/vibrate/{intensity}")
-async def legacy_vibrate(intensity: int, duration: float = Query(default=0.0)):
-    if not (0 <= intensity <= 20):
-        raise HTTPException(status_code=400, detail="Intensity must be 0-20")
-    result = await manager.send_request_all("vibrate", intensity=intensity, duration=duration)
-    d = f"{duration}s" if duration > 0 else "indefinite"
-    return {"result": f"Vibration request attempted at {intensity}/20 ({d})", "devices": result}
-
-
-@app.post("/stop")
-async def legacy_stop():
-    result = await manager.stop_all()
-    return {"result": "Stop attempted", "devices": result}
-
-
-@app.post("/preset/{pattern}")
-async def legacy_preset(pattern: str, duration: float = Query(default=10.0)):
-    result = await manager.send_request_all("pattern", name=pattern, duration=duration)
-    return {"result": f"Pattern '{pattern}' scheduled/attempted ({duration}s)", "devices": result}
-
-
-@app.get("/status")
-async def legacy_status():
-    return manager.get_status()

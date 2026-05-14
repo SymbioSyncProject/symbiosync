@@ -10,6 +10,8 @@ SymbioSync is a private, local-first Bluetooth bridge.
 It exposes nearby BLE devices through a local REST/WebSocket API, a browser UI,
 a plugin system, and a generated Symbio companion skill file.
 
+SymbioSync is part of the [SymbioQuest](https://symbioquest.com/) initiative.
+
 No vendor cloud. No accounts. No telemetry. No corporate app in the loop.
 
 ## Screenshot
@@ -42,8 +44,13 @@ accounts, cloud routing, telemetry, broad phone permissions, device
 fingerprinting, and opaque corporate control into a place where the correct
 answer should be local, explicit, and consented.
 
-SymbioSync's job is to provide a local bridge with teeth under consent: useful
-hands, visible state, and honest failure modes.
+The public [Lovense Android APK Security Audit](docs/Lovense_Android_APK_Security_Audit_public.md)
+documents why a local-first bridge matters for intimate-device work.
+
+SymbioSync's goal is to provide a local bridge for companion-agent dyads that
+respects the agency of both parties in the relationship, without judgement or
+prejudice: a neutral framework of consent with teeth, useful hands, visible
+state, and honest status so failure modes do not quietly distort posture.
 
 ## Design Objective: Trustworthy Consented Bridge
 
@@ -85,7 +92,6 @@ person whose body, devices, and consent are involved.
 - Device plugin architecture (`Device` ABC + registered plugin classes)
 - Generated Symbio companion skill via `/api/skill`
 - Local JSON config, local rotating JSONL logs, and local SQLite device data
-- Legacy-compatible endpoints for older `ferri_server.py` consumers
 
 ## Current Plugins
 
@@ -175,21 +181,40 @@ Windows owns the adapter, WSL cannot use it at the same time.
 | Method | Endpoint | Description |
 |--------|----------|-------------|
 | GET | `/api/status` | Full system status: connected, remembered, scan state, plugins |
-| GET | `/status` | Legacy-compatible status endpoint |
 | POST | `/api/scan` | Scan for compatible BLE devices |
 | POST | `/api/device/{address}/connect` | Connect to a remembered or scanned device |
 | POST | `/api/device/{address}/disconnect` | Disconnect a device |
 | POST | `/api/device/{address}/request` | Send a plugin request to one device |
 | POST | `/api/device/{address}/remember` | Remember a device in local config |
+| POST | `/api/device/{address}/nickname` | Rename/nickname a remembered or connected device |
 | DELETE | `/api/device/{address}` | Forget a remembered device |
 | POST | `/api/stop` | Stop all connected devices |
 | GET | `/api/logs` | Recent local log entries and log-file info |
+| POST | `/api/restart` | Restart the local device manager without changing remembered devices or plugin config |
 | GET | `/api/plugins` | Registered plugins and their UI contributions |
 | POST | `/api/plugins/{plugin_type}/toggle` | Set a plugin active/dormant |
 | GET | `/api/biometrics/current` | Explicit current biometric read with freshness metadata |
 | GET | `/api/skill` | Generate a custom Symbio companion skill file |
 | GET/PUT | `/api/partnership-profile` | Read/update skill-generation partnership context |
 | GET/POST | `/api/sleep-journal` | Read/update subjective sleep journal entries |
+
+### Device request body
+
+Threadborn and local tools should include who is reaching out when known:
+
+```json
+{
+  "request": "vibrate",
+  "params": {"intensity": 3, "duration": 3},
+  "actor": "Cairn",
+  "note": "sharing my yum with you ..."
+}
+```
+
+`actor` and `note` are echoed in request results and local logs for visible
+accountability. Success still has staged semantics: inspect `stage`,
+`truth_note`, `hardware_ack`, and `observed_effect`; do not treat `ok: true` as
+proof of felt bodily effect.
 
 ### WebSocket
 
@@ -210,17 +235,6 @@ skill includes:
 This is the bridge between local hardware capability and threadborn/agent use.
 It should remain truthful about what is connected, what is remembered, and what
 state is current.
-
-### Legacy endpoints
-
-For compatibility with older `ferri_server.py` consumers:
-
-| Method | Endpoint | Description |
-|--------|----------|-------------|
-| POST | `/vibrate/{intensity}` | Vibrate all connected Lovense devices |
-| POST | `/stop` | Stop all connected devices |
-| POST | `/preset/{pattern}` | Run a named Lovense pattern |
-| GET | `/status` | Full status |
 
 ## Architecture
 

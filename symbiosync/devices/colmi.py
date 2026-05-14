@@ -29,7 +29,7 @@ from .base import Device, DeviceCapability, DeviceInfo
 # ---------------------------------------------------------------------------
 
 UART_SERVICE = "6E40FFF0-B5A3-F393-E0A9-E50E24DCCA9E"
-UART_RX      = "6E400002-B5A3-F393-E0A9-E50E24DCCA9E"  # write commands
+UART_RX      = "6E400002-B5A3-F393-E0A9-E50E24DCCA9E"  # write requests
 UART_TX      = "6E400003-B5A3-F393-E0A9-E50E24DCCA9E"  # notifications
 
 BIG_DATA_SERVICE = "DE5BF728-D711-4E47-AF26-65E3012A5DC7"
@@ -37,15 +37,15 @@ BIG_DATA_NOTIFY  = "DE5BF729-D711-4E47-AF26-65E3012A5DC7"
 BIG_DATA_WRITE   = "DE5BF72A-D711-4E47-AF26-65E3012A5DC7"
 BIG_DATA_MAGIC   = 0xBC
 
-# Command IDs
-CMD_SET_TIME         = 0x01
-CMD_BATTERY          = 0x03
-CMD_READ_HR_LOG      = 0x15
-CMD_HR_LOG_SETTINGS  = 0x16
-CMD_READ_STEP_DETAIL = 0x43
-CMD_TODAY_SPORTS     = 0x48
-CMD_START_REALTIME   = 0x69
-CMD_STOP_REALTIME    = 0x6A
+# Request IDs
+REQ_SET_TIME         = 0x01
+REQ_BATTERY          = 0x03
+REQ_READ_HR_LOG      = 0x15
+REQ_HR_LOG_SETTINGS  = 0x16
+REQ_READ_STEP_DETAIL = 0x43
+REQ_TODAY_SPORTS     = 0x48
+REQ_START_REALTIME   = 0x69
+REQ_STOP_REALTIME    = 0x6A
 
 # BigData data IDs
 SLEEP_DATA_ID = 0x27
@@ -85,10 +85,10 @@ def _crc(packet: list) -> int:
     return sum(packet[:15]) & 0xFF
 
 
-def _packet(cmd_id: int, data: list | None = None) -> bytearray:
-    """Build a 16-byte Colmi command packet with CRC."""
+def _packet(request_id: int, data: list | None = None) -> bytearray:
+    """Build a 16-byte Colmi request packet with CRC."""
     payload = data or []
-    pkt = [cmd_id] + payload + [0x00] * (14 - len(payload))
+    pkt = [request_id] + payload + [0x00] * (14 - len(payload))
     pkt.append(_crc(pkt))
     return bytearray(pkt)
 
@@ -149,28 +149,28 @@ def _metric_snapshot(value: int | float | bool | None, captured_at: float,
     }
 
 
-# --- Command builders ---
+# --- Request builders ---
 
-def cmd_realtime_hr() -> bytearray:
-    """Start real-time heart rate streaming (cmd 0x69, type=HR, action=start)."""
+def request_realtime_hr() -> bytearray:
+    """Start real-time heart rate streaming (request id 0x69, type=HR, action=start)."""
     return _packet(0x69, [0x01, 0x01])
 
-def cmd_stop_hr() -> bytearray:
+def request_stop_hr() -> bytearray:
     return _packet(0x6A, [0x01, 0x00, 0x00])
 
-def cmd_spo2_start() -> bytearray:
+def request_spo2_start() -> bytearray:
     return _packet(0x69, [0x03, 0x01])
 
-def cmd_spo2_stop() -> bytearray:
+def request_spo2_stop() -> bytearray:
     return _packet(0x6A, [0x03, 0x00, 0x00])
 
-def cmd_today_sports() -> bytearray:
+def request_today_sports() -> bytearray:
     return _packet(0x48, [])
 
-def cmd_battery() -> bytearray:
+def request_battery() -> bytearray:
     return _packet(0x03, [])
 
-def cmd_set_time(target: datetime | None = None) -> bytearray:
+def request_set_time(target: datetime | None = None) -> bytearray:
     t = target or _local_now()
     data = [
         _byte_to_bcd(t.year % 2000),
@@ -181,7 +181,7 @@ def cmd_set_time(target: datetime | None = None) -> bytearray:
         _byte_to_bcd(t.second),
         0x01,
     ]
-    return _packet(CMD_SET_TIME, data)
+    return _packet(REQ_SET_TIME, data)
 
 
 # ---------------------------------------------------------------------------
@@ -793,13 +793,13 @@ class ColmiDevice(Device):
 
             # Initialize: set time, start HR, check battery
             await asyncio.sleep(0.3)
-            await self._write(cmd_set_time(), "SET_TIME")
+            await self._write(request_set_time(), "SET_TIME")
             await asyncio.sleep(0.2)
-            await self._write(cmd_realtime_hr(), "HR_START")
+            await self._write(request_realtime_hr(), "HR_START")
             await asyncio.sleep(0.2)
-            await self._write(cmd_battery(), "BATT_REQ")
+            await self._write(request_battery(), "BATT_REQ")
             await asyncio.sleep(0.2)
-            await self._write(cmd_today_sports(), "SPORT_REQ")
+            await self._write(request_today_sports(), "SPORT_REQ")
 
             # Reset cadence trackers
             now = time.time()
@@ -827,7 +827,7 @@ class ColmiDevice(Device):
     async def disconnect(self):
         if self._client and self._client.is_connected:
             try:
-                await self._write(cmd_stop_hr(), "HR_STOP")
+                await self._write(request_stop_hr(), "HR_STOP")
                 await asyncio.sleep(0.1)
             except Exception:
                 pass
@@ -841,23 +841,23 @@ class ColmiDevice(Device):
         self._heart_rate = 0
         self.emit_event("RING_DISCONNECTED", self.address)
 
-    async def send_command(self, command: str, **kwargs) -> dict:
+    async def send_request(self, request: str, **kwargs) -> dict:
         try:
-            if command == "start_hr":
-                await self._write(cmd_realtime_hr(), "HR_START")
+            if request == "start_hr":
+                await self._write(request_realtime_hr(), "HR_START")
                 return {"ok": True}
-            elif command == "stop_hr":
-                await self._write(cmd_stop_hr(), "HR_STOP")
+            elif request == "stop_hr":
+                await self._write(request_stop_hr(), "HR_STOP")
                 return {"ok": True}
-            elif command == "snapshot_hr":
+            elif request == "snapshot_hr":
                 # One-shot HR reading: start streaming, wait for first valid reading, stop.
                 # Returns {"ok": True, "heart_rate": N} or times out after 45s.
                 return await self._snapshot_hr()
-            elif command == "snapshot_spo2":
+            elif request == "snapshot_spo2":
                 # One-shot SpO2: pause HR, measure, resume HR.
                 # Returns {"ok": True, "spo2": N} or times out after 10s.
                 return await self._snapshot_spo2()
-            elif command == "current_biometrics":
+            elif request == "current_biometrics":
                 return await self._current_biometrics(
                     include_spo2=bool(kwargs.get("include_spo2", False)),
                     hr_timeout=float(kwargs.get("hr_timeout", 15.0)),
@@ -865,37 +865,37 @@ class ColmiDevice(Device):
                     max_cached_hr_age=float(kwargs.get("max_cached_hr_age", 5.0)),
                     max_cached_spo2_age=float(kwargs.get("max_cached_spo2_age", 300.0)),
                 )
-            elif command == "start_spo2":
-                await self._write(cmd_spo2_start(), "SPO2_START")
+            elif request == "start_spo2":
+                await self._write(request_spo2_start(), "SPO2_START")
                 return {"ok": True}
-            elif command == "stop_spo2":
-                await self._write(cmd_spo2_stop(), "SPO2_STOP")
+            elif request == "stop_spo2":
+                await self._write(request_spo2_stop(), "SPO2_STOP")
                 return {"ok": True}
-            elif command == "battery":
-                await self._write(cmd_battery(), "BATT_REQ")
+            elif request == "battery":
+                await self._write(request_battery(), "BATT_REQ")
                 return {"ok": True, "battery": self._battery}
-            elif command == "sports":
-                await self._write(cmd_today_sports(), "SPORT_REQ")
+            elif request == "sports":
+                await self._write(request_today_sports(), "SPORT_REQ")
                 return {"ok": True}
-            elif command == "set_threshold":
+            elif request == "set_threshold":
                 self._threshold = int(kwargs.get("threshold", 0))
                 return {"ok": True, "threshold": self._threshold}
-            elif command == "sync_sleep":
+            elif request == "sync_sleep":
                 result = await self.fetch_sleep()
                 if result:
                     return {"ok": True, "sleep": result}
                 return {"ok": False, "error": "sleep sync failed or no data"}
-            elif command == "get_sleep":
+            elif request == "get_sleep":
                 sleep = self._last_sleep or _db_get_latest_sleep(self._db_path)
                 if sleep:
                     return {"ok": True, "sleep": sleep}
                 return {"ok": False, "error": "no sleep data available"}
-            elif command == "stop":
+            elif request == "stop":
                 # "stop" for ring means stop HR streaming
-                await self._write(cmd_stop_hr(), "HR_STOP")
+                await self._write(request_stop_hr(), "HR_STOP")
                 return {"ok": True}
             else:
-                return {"ok": False, "error": f"Unknown command: {command}"}
+                return {"ok": False, "error": f"Unknown request: {request}"}
         except Exception as e:
             return {"ok": False, "error": str(e)}
 
@@ -1024,7 +1024,7 @@ class ColmiDevice(Device):
         hr_active = (now - self._last_hr_response) < HR_ACTIVE_WAIT
         if not hr_active and (now - self._last_hr_req >= HR_INTERVAL):
             try:
-                await self._write(cmd_realtime_hr(), "HR_REQ")
+                await self._write(request_realtime_hr(), "HR_REQ")
                 self._last_hr_req = now
             except Exception as e:
                 self.emit_event("RING_HR_FAIL", str(e))
@@ -1032,7 +1032,7 @@ class ColmiDevice(Device):
         # Sports
         if now - self._last_sport_req >= SPORTS_INTERVAL:
             try:
-                await self._write(cmd_today_sports(), "SPORT_REQ")
+                await self._write(request_today_sports(), "SPORT_REQ")
                 self._last_sport_req = now
             except Exception as e:
                 self.emit_event("RING_SPORT_FAIL", str(e))
@@ -1040,7 +1040,7 @@ class ColmiDevice(Device):
         # Battery
         if now - self._last_battery_req >= BATTERY_INTERVAL:
             try:
-                await self._write(cmd_battery(), "BATT_REQ")
+                await self._write(request_battery(), "BATT_REQ")
                 self._last_battery_req = now
             except Exception as e:
                 self.emit_event("RING_BATT_FAIL", str(e))
@@ -1060,7 +1060,7 @@ class ColmiDevice(Device):
         prev_hr = self._heart_rate
         prev_response = self._last_hr_response
         try:
-            await self._write(cmd_realtime_hr(), "HR_SNAP_START")
+            await self._write(request_realtime_hr(), "HR_SNAP_START")
         except Exception as e:
             return {"ok": False, "error": str(e)}
         deadline = time.time() + timeout
@@ -1076,9 +1076,9 @@ class ColmiDevice(Device):
             return {"ok": False, "error": "not connected"}
         prev_spo2 = self._last_spo2
         try:
-            await self._write(cmd_stop_hr(), "HR_STOP_FOR_SPO2_SNAP")
+            await self._write(request_stop_hr(), "HR_STOP_FOR_SPO2_SNAP")
             await asyncio.sleep(0.2)
-            await self._write(cmd_spo2_start(), "SPO2_SNAP_START")
+            await self._write(request_spo2_start(), "SPO2_SNAP_START")
         except Exception as e:
             return {"ok": False, "error": str(e)}
         deadline = time.time() + timeout
@@ -1089,7 +1089,7 @@ class ColmiDevice(Device):
                 result = {"ok": True, "spo2": self._spo2}
                 break
         try:
-            await self._write(cmd_spo2_stop(), "SPO2_SNAP_STOP")
+            await self._write(request_spo2_stop(), "SPO2_SNAP_STOP")
             await asyncio.sleep(0.2)
             await self._resume_hr_with_retry()
         except Exception:
@@ -1108,11 +1108,11 @@ class ColmiDevice(Device):
             return
         try:
             # Pause HR streaming so ring can focus on SpO2
-            await self._write(cmd_stop_hr(), "HR_STOP_FOR_SPO2")
+            await self._write(request_stop_hr(), "HR_STOP_FOR_SPO2")
             await asyncio.sleep(0.2)
-            await self._write(cmd_spo2_start(), "SPO2_REQ")
+            await self._write(request_spo2_start(), "SPO2_REQ")
             await asyncio.sleep(3.0)
-            await self._write(cmd_spo2_stop(), "SPO2_STOP")
+            await self._write(request_spo2_stop(), "SPO2_STOP")
             await asyncio.sleep(0.2)
             # Resume HR streaming with verification
             await self._resume_hr_with_retry()
@@ -1135,7 +1135,7 @@ class ColmiDevice(Device):
             if not self.connected or not self._client:
                 return
             before = self._last_hr_response
-            await self._write(cmd_realtime_hr(), f"HR_RESUME_{'RETRY' if attempt > 1 else 'OK'}({attempt}/{max_attempts})")
+            await self._write(request_realtime_hr(), f"HR_RESUME_{'RETRY' if attempt > 1 else 'OK'}({attempt}/{max_attempts})")
             # Wait and check if ring responded
             await asyncio.sleep(verify_wait)
             if self._last_hr_response > before:
@@ -1167,9 +1167,9 @@ class ColmiDevice(Device):
         if len(data) < 2:
             return
 
-        cmd_id = data[0] & 0x7F
+        request_id = data[0] & 0x7F
 
-        if cmd_id == CMD_START_REALTIME:
+        if request_id == REQ_START_REALTIME:
             if len(data) < 4:
                 return
             reading_type = data[1]
@@ -1202,7 +1202,7 @@ class ColmiDevice(Device):
                     except Exception:
                         pass
 
-        elif cmd_id == CMD_TODAY_SPORTS:
+        elif request_id == REQ_TODAY_SPORTS:
             if len(data) >= 13:
                 steps = (data[1] << 16) | (data[2] << 8) | data[3]
                 calories = (data[7] << 16) | (data[8] << 8) | data[9]
@@ -1217,7 +1217,7 @@ class ColmiDevice(Device):
                 except Exception:
                     pass
 
-        elif cmd_id == CMD_BATTERY:
+        elif request_id == REQ_BATTERY:
             if len(data) > 2:
                 self._battery = data[1]
                 self._charging = bool(data[2])
@@ -1228,7 +1228,7 @@ class ColmiDevice(Device):
                 except Exception:
                     pass
 
-        elif cmd_id == CMD_SET_TIME:
+        elif request_id == REQ_SET_TIME:
             self.emit_event("RING_TIME_SET", "clock synchronized")
 
     def _bigdata_notification_handler(self, sender, data: bytearray):
@@ -1498,7 +1498,7 @@ function colmiSetThreshold() {
         }
     });
     if (!addr) { addr = 'all'; }
-    sendWS({ action: 'command', address: addr, command: 'set_threshold', params: { threshold: threshold } });
+    sendWS({ action: 'request', address: addr, request: 'set_threshold', params: { threshold: threshold } });
 }
 
 function colmiUpdateDisplay(data) {
@@ -1616,7 +1616,7 @@ function colmiSyncSleep() {
         }
     });
     if (!addr) { return; }
-    sendWS({ action: 'command', address: addr, command: 'sync_sleep' });
+    sendWS({ action: 'request', address: addr, request: 'sync_sleep' });
 }
 
 // Hook into global status updates
@@ -1706,15 +1706,14 @@ The ring captures sleep data overnight (deep, light, REM, awake stages). Data is
 
 **Important caveat:** Bed and wake times are ring-estimated from movement + heart rate. The wake time may lag actual waking if the person stayed still after waking (reading, resting in bed, scrolling phone). If the step counter increased during a "sleep" window, the person was awake -- steps override sleep detection. Do not treat ring sleep times as precise.
 
-## Per-Device Commands
+## Per-Device Requests
 
 | Method | Endpoint | Body JSON | Description |
 |--------|----------|-----------|-------------|
-| POST | `/api/device/{{address}}/command` | `{{"command":"set_threshold","params":{{"threshold":100}}}}` | Set HR alert threshold |
-| POST | `/api/device/{{address}}/command` | `{{"command":"battery"}}` | Request battery level |
-| POST | `/api/device/{{address}}/command` | `{{"command":"start_spo2"}}` | Trigger SpO2 measurement |
-| POST | `/api/device/{{address}}/command` | `{{"command":"sports"}}` | Request step/calorie update |
-| POST | `/api/device/{{address}}/command` | `{{"command":"sync_sleep"}}` | Fetch sleep data from ring |
-| POST | `/api/device/{{address}}/command` | `{{"command":"get_sleep"}}` | Get cached/stored sleep data |
+| POST | `/api/device/{{address}}/request` | `{{"request":"set_threshold","params":{{"threshold":100}}}}` | Set HR alert threshold |
+| POST | `/api/device/{{address}}/request` | `{{"request":"battery"}}` | Request battery level |
+| POST | `/api/device/{{address}}/request` | `{{"request":"start_spo2"}}` | Trigger SpO2 measurement |
+| POST | `/api/device/{{address}}/request` | `{{"request":"sports"}}` | Request step/calorie update |
+| POST | `/api/device/{{address}}/request` | `{{"request":"sync_sleep"}}` | Fetch sleep data from ring |
+| POST | `/api/device/{{address}}/request` | `{{"request":"get_sleep"}}` | Get cached/stored sleep data |
 """
-

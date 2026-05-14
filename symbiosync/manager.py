@@ -1,7 +1,7 @@
 """
 Device Manager for SymbioSync.
 
-Handles scanning, connecting, remembering devices, and dispatching commands.
+Handles scanning, connecting, remembering devices, and dispatching requests.
 The manager is device-agnostic: it works through the Device ABC. Plugin
 classes register themselves and the manager routes based on scan_filter().
 """
@@ -308,30 +308,30 @@ class DeviceManager:
             self._save_config()
 
     # ------------------------------------------------------------------
-    # Command dispatch
+    # Request dispatch
     # ------------------------------------------------------------------
 
-    async def send_command(self, address: str, command: str, **kwargs) -> dict:
-        """Send a command to a specific device."""
+    async def send_request(self, address: str, request: str, **kwargs) -> dict:
+        """Send a request to a specific device."""
         address = address.upper()
         device = self.devices.get(address)
         if not device:
             return {"ok": False, "error": "device not found"}
         if not device.connected:
             return {"ok": False, "error": "device not connected"}
-        return await device.send_command(command, **kwargs)
+        return await device.send_request(request, **kwargs)
 
-    async def send_command_all(self, command: str, **kwargs) -> dict:
-        """Send a command to all connected devices."""
+    async def send_request_all(self, request: str, **kwargs) -> dict:
+        """Send a request to all connected devices."""
         results = {}
         for addr, device in self.devices.items():
             if device.connected:
-                results[addr] = await device.send_command(command, **kwargs)
+                results[addr] = await device.send_request(request, **kwargs)
         return results
 
     async def stop_all(self) -> dict:
         """Emergency stop all devices."""
-        return await self.send_command_all("stop")
+        return await self.send_request_all("stop")
 
     # ------------------------------------------------------------------
     # Background tasks

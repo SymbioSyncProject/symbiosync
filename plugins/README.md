@@ -22,7 +22,7 @@ Do not flatten these distinctions:
 - current signal vs stale/cached signal
 - missing signal vs zero/false/normal signal
 - connected device vs remembered/previously seen device
-- API command accepted vs transport write accepted vs hardware-delivered/observed
+- API request accepted vs transport write accepted vs hardware-delivered/observed
 - hardware unavailable vs software failure
 - consent/state valid vs merely technically possible
 

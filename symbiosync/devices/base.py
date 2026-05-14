@@ -51,7 +51,7 @@ class Device(ABC):
     Lifecycle:
         1. Manager creates device from DeviceInfo (or from saved config)
         2. connect() establishes BLE link
-        3. send_command() for control, get_status() for state
+        3. send_request() for control, get_status() for state
         4. keepalive() called periodically by manager
         5. disconnect() on shutdown or user request
         6. on_disconnect callback fires if BLE drops unexpectedly
@@ -90,12 +90,12 @@ class Device(ABC):
         ...
 
     @abstractmethod
-    async def send_command(self, command: str, **kwargs) -> dict:
-        """Send a command to the device.
+    async def send_request(self, request: str, **kwargs) -> dict:
+        """Send a request to the device.
 
         Args:
-            command: Command name (e.g. "vibrate", "rotate", "battery")
-            **kwargs: Command-specific args (e.g. intensity=5, duration=3.0)
+            request: Request name (e.g. "vibrate", "rotate", "battery")
+            **kwargs: Request-specific args (e.g. intensity=5, duration=3.0)
 
         Returns:
             dict with at least {"ok": bool, ...}
@@ -181,7 +181,7 @@ class Device(ABC):
 
         This is where each plugin defines:
         - What the devices are and what they can do
-        - Command reference with examples
+        - Request reference with examples
         - Etiquette / protocol for interacting with these devices
         - Intensity scales, patterns, or any device-specific semantics
 

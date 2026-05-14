@@ -428,7 +428,7 @@ select:focus { border-color: var(--accent-cyan); }
 
 .log-ts { color: var(--text-dim); }
 .log-event { font-weight: 600; }
-.log-event-cmd { color: var(--accent-cyan); }
+.log-event-tx { color: var(--accent-cyan); }
 .log-event-rx { color: var(--accent-green); }
 .log-event-err { color: var(--accent-red); }
 .log-event-warn { color: var(--accent-amber); }

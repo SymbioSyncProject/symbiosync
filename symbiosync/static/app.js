@@ -10,6 +10,7 @@ let deviceState = { devices: {}, remembered: {}, last_scan: [], connected_count:
 // Plugin status hooks: each plugin registers a callback to update itself
 // when device state changes. Populated by plugin JS via control_js().
 window._pluginStatusHooks = [];
+window._pluginRequestResultHooks = [];
 
 // ------------------------------------------------------------------
 // WebSocket
@@ -84,7 +85,12 @@ function handleMessage(msg) {
         case 'remember_result':
         case 'forget_result':
         case 'toggle_result':
-        case 'command_result':
+        case 'request_result':
+            if (msg.type === 'request_result') {
+                window._pluginRequestResultHooks.forEach(function(hook) {
+                    try { hook(msg); } catch (e) { console.error('Plugin request-result hook error:', e); }
+                });
+            }
             break;
     }
 }
@@ -440,7 +446,7 @@ function appendLog(entry) {
 function getEventClass(event, level) {
     if (level === 'error' || event.includes('FAIL')) return 'log-event-err';
     if (level === 'warn' || event === 'WARN' || event === 'DROP') return 'log-event-warn';
-    if (event === 'CMD' || event === 'VIBRATE') return 'log-event-cmd';
+    if (event === 'TX' || event === 'VIBRATE') return 'log-event-tx';
     if (event === 'RX') return 'log-event-rx';
     if (event.includes('SCAN')) return 'log-event-scan';
     return 'log-event-info';
@@ -589,7 +595,7 @@ async function copySkill() {
         textarea.style.opacity = '0';
         document.body.appendChild(textarea);
         textarea.select();
-        document.execCommand('copy');
+        document.execRequest('copy');
         document.body.removeChild(textarea);
         document.getElementById('btn-copy-skill').textContent = 'Copied!';
         setTimeout(() => {

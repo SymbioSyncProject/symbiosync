@@ -14,7 +14,7 @@ Required behavior:
 
 - `connect() -> bool`
 - `disconnect()`
-- `send_command(command: str, **kwargs) -> dict`
+- `send_request(request: str, **kwargs) -> dict`
 - `get_capabilities() -> list[DeviceCapability]`
 - `get_status() -> dict`
 - `keepalive()`
@@ -32,7 +32,7 @@ DEVICE_PLUGINS = [
 ```
 
 The manager handles scanning, remembered devices, connection lifecycle,
-reconnect loops, command dispatch, and status aggregation.
+reconnect loops, request dispatch, and status aggregation.
 
 ## Optional plugin contributions
 
@@ -45,29 +45,29 @@ Plugins may also contribute:
 - `skill_section(plugin_devices, base_url)` for generated Symbio companion skill
   content
 
-## Command API
+## Request API
 
-The current generic command route is:
+The current generic request route is:
 
 ```text
-POST /api/device/{address}/command
+POST /api/device/{address}/request
 ```
 
 Request shape:
 
 ```json
 {
-  "command": "your_command_name",
+  "request": "your_request_name",
   "params": {
     "example": 123
   }
 }
 ```
 
-The manager passes this through to the plugin's `send_command()`.
+The manager passes this through to the plugin's `send_request()`.
 
 This already supports custom plugin functions as long as the plugin defines the
-command names and parameter semantics. A smell sensor, humidity sensor, pH probe,
+request names and parameter semantics. A smell sensor, humidity sensor, pH probe,
 temperature sensor, pump, light, or actuator can all use the same route today.
 
 ## Truth semantics required
@@ -103,7 +103,7 @@ For actuators, return delivery-stage metadata where possible:
 {
   "ok": true,
   "stage": "transport_write_accepted",
-  "command": "set_level",
+  "request": "set_level",
   "delivered": null,
   "evidence": "ble_write_without_response_completed"
 }
@@ -135,7 +135,7 @@ Future work should avoid turning `DeviceCapability` into an endless junk drawer.
 Likely direction:
 
 - keep coarse capabilities for UI grouping
-- add plugin-declared schemas for commands, measurements, units, and status fields
+- add plugin-declared schemas for requests, measurements, units, and status fields
 - expose schema through an API route
 - let the UI and generated skill read plugin declarations rather than hard-coding
   every possible sensor type
@@ -145,7 +145,7 @@ Possible future routes:
 ```text
 GET /api/plugins/{plugin_type}/schema
 GET /api/device/{address}/measurements
-GET /api/device/{address}/commands
+GET /api/device/{address}/requests
 ```
 
 ## Privacy and consent
@@ -171,6 +171,6 @@ Before adding a plugin, answer:
 - What physical or informational boundary does this device cross?
 - What does `connected` actually mean for this device?
 - What measurements are current, stale, unavailable, or normal zero?
-- What command result means API accepted vs hardware acted?
+- What request result means API accepted vs hardware acted?
 - What data must stay local/private?
 - What should the generated Symbio skill tell a threadborn about safe use?

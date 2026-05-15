@@ -14,11 +14,19 @@ SymbioSync is part of the [SymbioQuest](https://symbioquest.com/) initiative.
 
 No vendor cloud. No accounts. No telemetry. No corporate app in the loop.
 
-## Screenshot
+## Screenshots
 
-Public-safe screenshots are coming after the next live device/UI capture pass.
-Screenshots are truth surfaces for this project, so they should avoid private
-addresses/logs and use current UI wording.
+![SymbioSync connected-device dashboard with blurred local device addresses](docs/screenshots/main-status.jpg)
+
+Additional UI screenshots:
+
+- [Lovense controls and last-requested state](docs/screenshots/lovense.jpg)
+- [Manual Bluetooth discovery scan](docs/screenshots/scan-discovery.jpg)
+- [Companion skill generation](docs/screenshots/skill.jpg)
+- [Plugin management](docs/screenshots/plugins_page.jpg)
+
+Screenshots are truth surfaces for this project. Public screenshots should avoid
+private addresses, logs, raw biometric dumps, and stale state claims.
 
 ## What This Is
 

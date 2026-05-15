@@ -1,6 +1,6 @@
 # Colmi / QRing biometric protocol notes
 
-Source material: curated QRing APK static analysis references copied from `D:\feedback\qring\inferred_operations\sources`.
+Source material: curated QRing APK static-analysis notes.
 
 This note is about current/manual/interval biometrics. It is not a raw dump; it records only protocol evidence that affects SymbioSync's trust-bearing biometric bridge.
 

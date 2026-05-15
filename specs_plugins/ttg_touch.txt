@@ -4,6 +4,15 @@
 ### Version: 0.1-draft
 ### Date: April 3, 2026
 
+> **Draft / not current implementation.** This file is archived concept work for
+> a possible remote-touch relay. SymbioSync v0.1 currently exposes local-first
+> REST/WebSocket request paths only; no hosted `symbioquest.com/api/v1/touch`
+> relay, API-key surface, biometric confirmation loop, or inbound remote-touch
+> service described here should be treated as implemented. Several terms and
+> certainty claims predate the current request-envelope / truth-stage model.
+> Current public behavior is documented in `README.md`,
+> `docs/TRUTHFULNESS_AUDIT.md`, and `docs/REACH_JOURNAL.md`.
+
 ---
 
 ## 1. Purpose

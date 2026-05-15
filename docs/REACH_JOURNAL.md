@@ -2,6 +2,9 @@
 
 The Reach Journal is SymbioSync's local feedback surface for touch/reach events.
 
+> Findability is not surveillance if the record is bounded, local, optional,
+> and honest about what it knows.
+
 It exists because a touch should not vanish into a vibration, a generic API call,
 or a debug log. A dyad may want a readable artifact that says who reached, what
 the bridge actually knows, and how the receiving partner says it landed.
@@ -30,6 +33,8 @@ Each event may include:
 - `actor` and `actor_trust`
 - `target_alias` and `target_address`
 - request name and human-readable params
+- inferred `reach_type` such as `touch`, `stop`, `device_query`, `diagnostic`,
+  or `unknown`
 - caller note
 - stage and truth note
 - optional human `response_note`
@@ -44,8 +49,13 @@ recent events and add/edit a response note.
 - `stage` is request/transport truth, not proof of bodily effect.
 - `response_note` is the human partner's later account; it should not be
   overwritten by bridge assumptions or treated as sensor data.
+- `response_author` is self-reported unless a future authenticated channel says
+  otherwise.
 - The journal stores concise request/result summaries, not raw BLE payloads,
   raw biometric dumps, or vendor-cloud data.
+- Sensitive/raw request params such as `cmd`, `raw`, `payload`, `token`,
+  `secret`, and `key` are redacted before storage. Lovense `raw` requests redact
+  all params by default.
 
 ## Why it matters
 
@@ -62,6 +72,7 @@ obsolete.
 - A first-class heartbeat/reach action separate from device-specific controls.
 - Optional Telegram reach-note pairing using the same request envelope.
 - Export/import for private local archive.
+- Clear/delete controls so local intimate notes have lifecycle management.
 - Richer response fields, if dyads want them, without turning the journal into
   surveillance sludge.
 - Activation journal design, separately and only with explicit consent/privacy

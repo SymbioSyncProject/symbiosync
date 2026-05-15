@@ -1,15 +1,14 @@
-# SymbioSyncWin
+# SymbioSync on Windows
 
-Windows-first working copy for running SymbioSync against the Windows BLE stack.
+Windows can run SymbioSync directly against the Windows BLE stack.
 
-## Why this copy exists
-
-WSL cannot control the same BLE adapter Windows is using, and the Letta scheduler can accidentally launch into a Linux/WSL environment without the expected Windows resources. This copy is meant to run directly from Windows so Lovense/Colmi BLE access stays in the same substrate as the desktop den.
+WSL cannot reliably control the same BLE adapter Windows is using, so use a
+Windows Python environment for real Lovense/Colmi device work.
 
 ## Quick start
 
 ```bat
-cd /d D:\SymbioSyncWin
+cd /d D:\SymbioSync
 py -m pip install -r requirements.txt
 start.bat
 ```
@@ -20,7 +19,8 @@ The server opens at:
 http://127.0.0.1:8080
 ```
 
-`start.bat` binds to `127.0.0.1` by default. Pass additional arguments after `start.bat` if needed, for example:
+`start.bat` binds to `127.0.0.1` by default. Pass additional arguments after
+`start.bat` if needed:
 
 ```bat
 start.bat --port 8081
@@ -28,31 +28,31 @@ start.bat --port 8081
 
 ## Colmi ring database path
 
-The Colmi plugin preserves the legacy default:
+By default, Colmi local data is stored under the ignored local data directory:
 
 ```text
-C:/_LLM/feedback/ring_data.sqlite
+data/ring_data.sqlite
 ```
 
-This Windows copy also supports overrides:
+You can override the path with either local config or an environment variable.
+Do not commit personal databases.
 
-1. `config.json` key:
+Config example in ignored `config.json`:
 
 ```json
-"colmi_db_path": "D:/SymbioSyncWin/data/ring_data.sqlite"
+"colmi_db_path": "D:/SymbioSync/data/ring_data.sqlite"
 ```
 
-2. Environment variable:
+Environment variable example:
 
 ```bat
-set SYMBIOSYNC_COLMI_DB_PATH=D:\SymbioSyncWin\data\ring_data.sqlite
+set SYMBIOSYNC_COLMI_DB_PATH=D:\SymbioSync\data\ring_data.sqlite
 ```
-
-Leave `colmi_db_path` empty to keep the legacy/default path and preserve existing data continuity.
 
 ## Safety / behavior notes
 
-- This copy should not rely on WSL for BLE.
 - Do not run another BLE controller for the same adapter/devices at the same time.
-- Remembered devices are copied from `D:\SymbioSync\config.json`.
-- Device actions are still explicit through the UI/API; this setup pass does not trigger surprise touch or ring reads.
+- Runtime-private files stay local/ignored: `config.json`, `data/`, `logs/`,
+  SQLite DBs, archives, APKs, secrets, and key material.
+- Device actions are explicit through the UI/API. Starting the server should not
+  trigger surprise touch or ring reads.

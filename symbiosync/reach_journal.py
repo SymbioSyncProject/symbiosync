@@ -14,6 +14,9 @@ from threading import RLock
 from typing import Any
 
 
+SENSITIVE_PARAM_KEYS = {"cmd", "raw", "payload", "token", "secret", "key", "api_key"}
+
+
 def _utc_now() -> str:
     return datetime.now(timezone.utc).isoformat()
 
@@ -64,11 +67,32 @@ class ReachJournal:
         return None
 
     @staticmethod
-    def _sanitize_params(params: dict | None) -> dict:
+    def _sanitize_params(request: str, params: dict | None) -> dict:
         if not isinstance(params, dict):
             return {}
         # Keep human-readable request shape. Do not add raw BLE/protocol payloads.
-        return dict(params)
+        sanitized = {}
+        raw_request = str(request or "").lower() == "raw"
+        for key, value in params.items():
+            key_s = str(key)
+            if raw_request or key_s.lower() in SENSITIVE_PARAM_KEYS:
+                sanitized[key_s] = "[redacted]"
+            else:
+                sanitized[key_s] = value
+        return sanitized
+
+    @staticmethod
+    def _reach_type(request: str) -> str:
+        request = str(request or "").lower()
+        if request in {"vibrate", "pattern", "ambient", "rotate", "air", "air_level", "thrust", "suck", "finger", "light"}:
+            return "touch"
+        if request == "stop":
+            return "stop"
+        if request in {"battery", "device_type", "status"}:
+            return "device_query"
+        if request == "raw":
+            return "diagnostic"
+        return "unknown"
 
     @staticmethod
     def _result_summary(result: Any) -> dict:
@@ -116,12 +140,15 @@ class ReachJournal:
             "target_address": envelope.get("target_address", ""),
             "target_alias": envelope.get("target_alias", envelope.get("target_address", "")),
             "request": envelope.get("request", ""),
-            "request_params": self._sanitize_params(envelope.get("request_params")),
+            "reach_type": self._reach_type(envelope.get("request", "")),
+            "request_params": self._sanitize_params(envelope.get("request", ""), envelope.get("request_params")),
             "note": envelope.get("note", ""),
             "stage": "request_received",
             "truth_note": "Request envelope received by local SymbioSync server; device result not recorded yet.",
             "response_note": "",
             "response_author": "",
+            "response_author_trust": "",
+            "response_source_channel": "",
             "response_at": "",
         }
         with self._lock:
@@ -163,7 +190,8 @@ class ReachJournal:
             events = list(self._events[-max(1, min(limit, self.max_events)):])
         return [dict(e) for e in reversed(events)]
 
-    def set_response_note(self, request_id: str, note: str, author: str = "Human") -> dict | None:
+    def set_response_note(self, request_id: str, note: str, author: str = "Human",
+                          source_channel: str = "local_ui") -> dict | None:
         with self._lock:
             idx = self._find_index(request_id)
             if idx is None:
@@ -171,6 +199,8 @@ class ReachJournal:
             event = self._events[idx]
             event["response_note"] = str(note or "")
             event["response_author"] = str(author or "Human")
+            event["response_author_trust"] = "self_reported" if note else ""
+            event["response_source_channel"] = str(source_channel or "local_ui") if note else ""
             event["response_at"] = _utc_now() if note else ""
             event["updated_at"] = _utc_now()
             self._write_all()

@@ -40,8 +40,8 @@ class DeviceManager:
         # Partnership profile (human-editable relational context for skill generation)
         self.partnership_profile: str = ""
 
-        # Optional Colmi ring SQLite override. If empty, the Colmi plugin keeps
-        # its legacy/default path (or SYMBIOSYNC_COLMI_DB_PATH if set).
+        # Optional Colmi ring SQLite override. If empty, the Colmi plugin uses
+        # its ignored local data path (or SYMBIOSYNC_COLMI_DB_PATH if set).
         self.colmi_db_path: str = ""
 
         # Remembered devices from config (address -> {name, type, enabled})

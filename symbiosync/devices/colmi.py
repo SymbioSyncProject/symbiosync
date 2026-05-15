@@ -63,10 +63,10 @@ SPO2_INTERVAL      = 3600.0    # poll SpO2 hourly; it pauses HR and should stay 
 HISTORY_SYNC_INTERVAL = 30 * 60.0  # sync history every 30 min
 BACKFILL_DAYS      = 7
 
-# DB path -- defaults to the same database as the legacy ferri_server.
-# Windows copies can override this with config.json (`colmi_db_path`) or the
+# DB path -- defaults to the ignored local data directory.
+# Local installs can override this with config.json (`colmi_db_path`) or the
 # SYMBIOSYNC_COLMI_DB_PATH environment variable.
-DEFAULT_DB_PATH = str(Path("C:/_LLM/feedback/ring_data.sqlite"))
+DEFAULT_DB_PATH = str(Path("data/ring_data.sqlite"))
 DB_PATH = os.environ.get("SYMBIOSYNC_COLMI_DB_PATH", DEFAULT_DB_PATH)
 
 

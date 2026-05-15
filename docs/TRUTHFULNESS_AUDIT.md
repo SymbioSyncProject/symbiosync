@@ -39,6 +39,7 @@ accidentally lie by omission.
 | Generated Symbio skill (`/api/skill`) | Says the agent can reach endpoints, gives plugin request sections, and describes snapshot/request-result semantics. | Knows current connected/remembered state at generation time. Does not know future state or live consent. | Skill can still teach threadborn partners to overclaim capability if plugin-specific text drifts. | Keep snapshot warning: check current status; request `ok` may mean transport acceptance; stop is best-effort; profile is context, not live consent. |
 | Partnership profile | Human-authored text included in generated skill. | Knows configured profile text. | Could be mistaken for current consent/state if not bounded. | Label as durable context/preferences. Add instruction that live context and explicit boundaries override profile text. |
 | Logs | Logger captures TX/RX, request envelopes, and request-result summaries locally. | Knows emitted software events plus request_id/source/actor/target/request/stage for device request paths. | Still not a durable activation journal. Notes may carry intimate content and should not be expanded into raw dumps. | Keep request envelope concise. Design activation journal separately with consent/privacy boundaries before durable intimate event history. |
+| Reach Journal | Stores local request/result events and optional human response notes. | Knows bridge/request truth from request envelopes and whatever the human later writes as response truth. | Could be mistaken for full consent audit, sensor truth, or complete conversation history. Response notes may contain intimate context and should not become raw dumps or public artifacts. | Keep local-only bounded feedback surface. Separate bridge truth from human response truth. Do not call it activation journaling until consent/privacy design exists. |
 | Browser UI labels | Shows connected devices, plugin status, controls, logs. | Knows API status and local browser state. | Labels like "current" or actuator level can overstate observed hardware/body state. | Initial Lovense pass now labels actuator values as last-requested and displays request result stage; Colmi/currentness screenshot review still needed. |
 | README screenshots / public docs | Show visual proof of UI/device state and project behavior. | Know only a captured moment, possibly staged, redacted, stale, or device-specific. | Readers or future models may infer live/current/reliable behavior from one artifact. | Caption screenshots and docs with device state, redaction/freshness/staging notes where needed. Do not use screenshots that imply body/device state the bridge cannot know. |
 
@@ -83,6 +84,16 @@ Current device request results should also carry:
   "actor_trust": "self_reported",
   "target_address": "...",
   "target_alias": "..."
+}
+```
+
+Reach Journal entries use the same envelope and add optional human feedback:
+
+```json
+{
+  "response_note": "human-written account of how this reach landed",
+  "response_author": "Human",
+  "response_at": "ISO timestamp"
 }
 ```
 

@@ -20,6 +20,7 @@ from starlette.websockets import WebSocketState
 from . import __version__
 from .logger import Logger
 from .manager import DeviceManager
+from .reach_journal import ReachJournal
 
 # ------------------------------------------------------------------
 # Globals (set by __main__.py via set_config)
@@ -33,10 +34,12 @@ _base_dir = Path(__file__).parent.parent  # SymbioSync root
 _static_dir = Path(__file__).parent / "static"
 _config_path = _base_dir / "config.json"
 _log_dir = _base_dir / "logs"
+_data_dir = _base_dir / "data"
 
 # Singletons
 logger: Logger | None = None
 manager: DeviceManager | None = None
+reach_journal: ReachJournal | None = None
 _ws_clients: set[WebSocket] = set()
 
 
@@ -52,9 +55,10 @@ def set_config(host: str = "127.0.0.1", port: int = 8080):
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    global logger, manager
+    global logger, manager, reach_journal
     logger = Logger(log_dir=_log_dir)
     manager = DeviceManager(config_path=_config_path, logger=logger)
+    reach_journal = ReachJournal(_data_dir / "reach_events.jsonl")
     logger.log("SERVER", f"SymbioSync v{__version__} starting on {_host}:{_port}")
     await manager.start()
     yield
@@ -197,9 +201,21 @@ def _result_stage(result) -> str:
     return "unknown"
 
 
+async def _broadcast_ws_message(message: dict):
+    """Broadcast a JSON message to connected browser clients."""
+    dead = set()
+    for client in list(_ws_clients):
+        try:
+            if client.client_state == WebSocketState.CONNECTED:
+                await client.send_json(message)
+        except Exception:
+            dead.add(client)
+    _ws_clients.difference_update(dead)
+
+
 async def _broadcast_request_result(address: str, result, envelope: dict):
     """Broadcast API-originated request results to browser clients."""
-    message = {
+    await _broadcast_ws_message({
         "type": "request_result",
         "address": address,
         "result": result,
@@ -209,15 +225,7 @@ async def _broadcast_request_result(address: str, result, envelope: dict):
         "actor_trust": envelope.get("actor_trust"),
         "note": envelope.get("note", ""),
         "target_alias": envelope.get("target_alias"),
-    }
-    dead = set()
-    for client in list(_ws_clients):
-        try:
-            if client.client_state == WebSocketState.CONNECTED:
-                await client.send_json(message)
-        except Exception:
-            dead.add(client)
-    _ws_clients.difference_update(dead)
+    })
 
 
 async def _execute_device_request(address: str, request: str, params: dict,
@@ -232,6 +240,8 @@ async def _execute_device_request(address: str, request: str, params: dict,
         source_channel=source_channel,
     )
     logger.log("REQUEST", _request_log_detail(envelope), device=envelope["target_alias"])
+    if reach_journal:
+        reach_journal.record_request(envelope)
 
     if (address or "").lower() == "all":
         raw_result = await manager.send_request_all(request, **(params or {}))
@@ -247,6 +257,10 @@ async def _execute_device_request(address: str, request: str, params: dict,
         "request": request,
     }, ensure_ascii=False, separators=(",", ":"))
     logger.log("REQUEST_RESULT", result_detail, device=envelope["target_alias"])
+    if reach_journal:
+        event = reach_journal.record_result(envelope["request_id"], result)
+        if event:
+            await _broadcast_ws_message({"type": "reach_event_updated", "event": event})
     return result, envelope
 
 @app.websocket("/ws")
@@ -507,6 +521,28 @@ async def api_logs(count: int = Query(default=100)):
     return {"entries": logger.recent(count), "file_info": logger.get_file_info()}
 
 
+@app.get("/api/reach-events")
+async def api_reach_events(limit: int = Query(default=100)):
+    if not reach_journal:
+        return {"events": []}
+    return {"events": reach_journal.recent(limit)}
+
+
+@app.post("/api/reach-events/{request_id}/response-note")
+async def api_reach_response_note(request_id: str, body: dict):
+    if not reach_journal:
+        raise HTTPException(status_code=503, detail="Reach journal not available")
+    event = reach_journal.set_response_note(
+        request_id,
+        body.get("note", ""),
+        body.get("author", "Human"),
+    )
+    if not event:
+        raise HTTPException(status_code=404, detail="Reach event not found")
+    await _broadcast_ws_message({"type": "reach_event_updated", "event": event})
+    return {"ok": True, "event": event}
+
+
 @app.post("/api/restart")
 async def api_restart():
     """Restart the local device manager without killing the Windows shell."""
@@ -718,6 +754,8 @@ boundaries.
 | GET | `/api/status` | Full device status JSON |
 | POST | `/api/scan` | Attempt to discover nearby compatible Bluetooth devices |
 | POST | `/api/stop` | Emergency stop all devices |
+| GET | `/api/reach-events` | Recent local reach/touch events with request-result truth |
+| POST | `/api/reach-events/{{request_id}}/response-note` | Add/update the human response note for a reach event |
 | POST | `/api/device/{{address}}/request` | Send a device request with optional `actor` and `note` |
 | POST | `/api/device/{{address}}/nickname` | Rename/nickname a remembered or connected device |
 | POST | `/api/restart` | Restart local device sessions and reconnect tasks without changing remembered devices or plugin config |
@@ -737,5 +775,8 @@ boundaries.
   `source_channel`, self-reported `actor`, target alias, request, and stage.
   REST/API-originated request results are also broadcast to connected browser
   UIs so local observers can see threadborn/API touch outcomes as they happen.
+- The Reach Journal stores local request/result feedback and optional human
+  response notes. Response notes are the human partner's later account of how a
+  reach landed; they are not sensor data and not a full activation journal.
 """
     return skill

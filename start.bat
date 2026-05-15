@@ -7,7 +7,7 @@ echo  No cloud. No accounts. No telemetry. Just Bluetooth.
 echo.
 echo  Starting Windows-local server... browser will open automatically.
 echo  Default bind is 127.0.0.1 so this stays on this machine.
-echo  Close this window or press Ctrl+C to stop.
+echo  Press Ctrl+C to stop, or run stop.bat from another window.
 echo.
 py -m symbiosync --host 127.0.0.1 %*
 pause

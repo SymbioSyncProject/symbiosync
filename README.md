@@ -154,6 +154,10 @@ python -m symbiosync
 # Opens http://127.0.0.1:8080 in your browser
 ```
 
+On Windows, `start.bat` runs the local server against the Windows BLE stack.
+`stop.bat` can be run from another command window to send a best-effort
+`/api/stop` and terminate the local SymbioSync Python process.
+
 ### Options
 
 ```bash

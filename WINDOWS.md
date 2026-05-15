@@ -13,6 +13,20 @@ py -m pip install -r requirements.txt
 start.bat
 ```
 
+To stop the local server from another command window:
+
+```bat
+stop.bat
+```
+
+`stop.bat` sends a best-effort `/api/stop` first, then terminates the local
+Python process running SymbioSync. Pass a port if you started on a non-default
+port:
+
+```bat
+stop.bat 8081
+```
+
 The server opens at:
 
 ```text

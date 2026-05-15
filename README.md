@@ -221,6 +221,24 @@ or device safety boundaries. Success still has staged semantics: inspect
 `stage`, `truth_note`, `hardware_ack`, and `observed_effect`; do not treat
 `ok: true` as proof of felt bodily effect.
 
+Request results include a server-generated accountability envelope:
+
+```json
+{
+  "request_id": "uuid",
+  "received_at": "ISO timestamp",
+  "source_channel": "rest | websocket | local_ui",
+  "actor": "caller-provided string",
+  "actor_trust": "self_reported",
+  "target_address": "...",
+  "target_alias": "human nickname if known"
+}
+```
+
+REST/API-originated request results are also broadcast to connected browser UIs
+over WebSocket so local observers can see threadborn/API touch outcomes as they
+happen.
+
 ### WebSocket
 
 `/ws` streams log events and status to the browser UI and accepts JSON requests

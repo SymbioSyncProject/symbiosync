@@ -10,6 +10,7 @@ import json
 from contextlib import asynccontextmanager
 from datetime import datetime, timezone
 from pathlib import Path
+from uuid import uuid4
 
 from fastapi import FastAPI, WebSocket, WebSocketDisconnect, HTTPException, Query
 from fastapi.responses import FileResponse, HTMLResponse
@@ -36,6 +37,7 @@ _log_dir = _base_dir / "logs"
 # Singletons
 logger: Logger | None = None
 manager: DeviceManager | None = None
+_ws_clients: set[WebSocket] = set()
 
 
 def set_config(host: str = "127.0.0.1", port: int = 8080):
@@ -83,9 +85,174 @@ app.mount("/static", StaticFiles(directory=str(_static_dir)), name="static")
 # WebSocket: log streaming + request dispatch
 # ------------------------------------------------------------------
 
+def _utc_now() -> str:
+    return datetime.now(timezone.utc).isoformat()
+
+
+def _target_alias(address: str) -> str:
+    """Return the human-facing target alias when known."""
+    addr = (address or "").upper()
+    if addr == "ALL":
+        return "all connected devices"
+    if manager is None:
+        return addr
+    remembered = manager.remembered.get(addr, {})
+    if remembered.get("name"):
+        return remembered["name"]
+    device = manager.devices.get(addr)
+    if device:
+        return device.name
+    return addr
+
+
+def _source_channel(channel: str, actor: str = "") -> str:
+    """Normalize request source to the current public API vocabulary."""
+    if channel == "websocket" and actor == "Local UI":
+        return "local_ui"
+    if channel in {"rest", "websocket", "local_ui"}:
+        return channel
+    return "unknown"
+
+
+def _request_envelope(*, address: str, request: str, params: dict, actor: str,
+                      note: str = "", source_channel: str) -> dict:
+    """Fields that make a touch request accountable without claiming consent/effect."""
+    addr = (address or "").upper()
+    envelope = {
+        "request_id": str(uuid4()),
+        "received_at": _utc_now(),
+        "source_channel": _source_channel(source_channel, actor),
+        "actor": actor or "Unknown",
+        "actor_trust": "self_reported",
+        "target_address": addr,
+        "target_alias": _target_alias(addr),
+        "request": request,
+        "request_params": params or {},
+    }
+    if note:
+        envelope["note"] = note
+    return envelope
+
+
+def _merge_envelope(result: dict, envelope: dict) -> dict:
+    """Add accountability fields without overriding plugin truth semantics."""
+    merged = dict(result)
+    if "stage" not in merged and merged.get("ok") is False:
+        error = str(merged.get("error", "")).lower()
+        if "not found" in error or "not connected" in error:
+            merged["stage"] = "device_not_connected"
+            merged.setdefault(
+                "truth_note",
+                "Device was not connected/found by the bridge; no device request was delivered.",
+            )
+        else:
+            merged["stage"] = "api_rejected"
+    for key, value in envelope.items():
+        merged.setdefault(key, value)
+    return merged
+
+
+def _enrich_request_result(result, envelope: dict):
+    """Attach envelope to a single result or each per-device result in a map."""
+    if not isinstance(result, dict):
+        return result
+    if "stage" in result or "ok" in result:
+        return _merge_envelope(result, envelope)
+
+    enriched = {}
+    for addr, item in result.items():
+        if isinstance(item, dict):
+            per_device = dict(envelope)
+            per_device["target_address"] = str(addr).upper()
+            per_device["target_alias"] = _target_alias(str(addr))
+            enriched[addr] = _merge_envelope(item, per_device)
+        else:
+            enriched[addr] = item
+    return enriched
+
+
+def _request_log_detail(envelope: dict) -> str:
+    fields = {
+        "request_id": envelope.get("request_id"),
+        "source_channel": envelope.get("source_channel"),
+        "actor": envelope.get("actor"),
+        "actor_trust": envelope.get("actor_trust"),
+        "target_alias": envelope.get("target_alias"),
+        "target_address": envelope.get("target_address"),
+        "request": envelope.get("request"),
+        "params": envelope.get("request_params"),
+    }
+    if envelope.get("note"):
+        fields["note"] = envelope["note"]
+    return json.dumps(fields, ensure_ascii=False, separators=(",", ":"))
+
+
+def _result_stage(result) -> str:
+    if isinstance(result, dict):
+        if result.get("stage"):
+            return result["stage"]
+        if all(isinstance(v, dict) for v in result.values()):
+            failed = sum(1 for v in result.values() if v.get("ok") is False)
+            return "multi_device_result" if failed == 0 else "one_or_more_failed"
+    return "unknown"
+
+
+async def _broadcast_request_result(address: str, result, envelope: dict):
+    """Broadcast API-originated request results to browser clients."""
+    message = {
+        "type": "request_result",
+        "address": address,
+        "result": result,
+        "request_id": envelope.get("request_id"),
+        "source_channel": envelope.get("source_channel"),
+        "actor": envelope.get("actor"),
+        "actor_trust": envelope.get("actor_trust"),
+        "note": envelope.get("note", ""),
+        "target_alias": envelope.get("target_alias"),
+    }
+    dead = set()
+    for client in list(_ws_clients):
+        try:
+            if client.client_state == WebSocketState.CONNECTED:
+                await client.send_json(message)
+        except Exception:
+            dead.add(client)
+    _ws_clients.difference_update(dead)
+
+
+async def _execute_device_request(address: str, request: str, params: dict,
+                                  actor: str, note: str, source_channel: str):
+    """Execute a device request with accountable envelope/log/broadcast fields."""
+    envelope = _request_envelope(
+        address=address,
+        request=request,
+        params=params or {},
+        actor=actor,
+        note=note,
+        source_channel=source_channel,
+    )
+    logger.log("REQUEST", _request_log_detail(envelope), device=envelope["target_alias"])
+
+    if (address or "").lower() == "all":
+        raw_result = await manager.send_request_all(request, **(params or {}))
+    else:
+        raw_result = await manager.send_request(address, request, **(params or {}))
+    result = _enrich_request_result(raw_result, envelope)
+
+    result_detail = json.dumps({
+        "request_id": envelope["request_id"],
+        "stage": _result_stage(result),
+        "actor": envelope["actor"],
+        "target_alias": envelope["target_alias"],
+        "request": request,
+    }, ensure_ascii=False, separators=(",", ":"))
+    logger.log("REQUEST_RESULT", result_detail, device=envelope["target_alias"])
+    return result, envelope
+
 @app.websocket("/ws")
 async def websocket_endpoint(ws: WebSocket):
     await ws.accept()
+    _ws_clients.add(ws)
     log_queue = logger.subscribe()
     try:
         # Send recent history on connect
@@ -114,6 +281,7 @@ async def websocket_endpoint(ws: WebSocket):
     except Exception:
         pass
     finally:
+        _ws_clients.discard(ws)
         logger.unsubscribe(log_queue)
 
 
@@ -149,16 +317,20 @@ async def _handle_ws_request(ws: WebSocket, data: dict):
         kwargs = data.get("params", {})
         actor = data.get("actor", "Local UI")
         note = data.get("note", "")
-        if addr == "all":
-            result = await manager.send_request_all(request_name, **kwargs)
-        else:
-            result = await manager.send_request(addr, request_name, **kwargs)
-        if isinstance(result, dict) and ("stage" in result or "ok" in result):
-            result.setdefault("actor", actor)
-            result.setdefault("request_params", kwargs)
-            if note:
-                result.setdefault("note", note)
-        await ws.send_json({"type": "request_result", "address": addr, "result": result})
+        result, envelope = await _execute_device_request(
+            addr, request_name, kwargs, actor, note, "websocket"
+        )
+        await ws.send_json({
+            "type": "request_result",
+            "address": addr,
+            "result": result,
+            "request_id": envelope["request_id"],
+            "source_channel": envelope["source_channel"],
+            "actor": envelope["actor"],
+            "actor_trust": envelope["actor_trust"],
+            "note": envelope.get("note", ""),
+            "target_alias": envelope["target_alias"],
+        })
 
     elif action == "stop_all":
         result = await manager.stop_all()
@@ -279,12 +451,10 @@ async def api_request(address: str, body: dict):
     params = body.get("params", {})
     actor = body.get("actor", "API")
     note = body.get("note", "")
-    result = await manager.send_request(address, request, **params)
-    if isinstance(result, dict):
-        result.setdefault("actor", actor)
-        result.setdefault("request_params", params)
-        if note:
-            result.setdefault("note", note)
+    result, envelope = await _execute_device_request(
+        address, request, params, actor, note, "rest"
+    )
+    await _broadcast_request_result(address.upper(), result, envelope)
     return result
 
 
@@ -563,8 +733,9 @@ boundaries.
 - This server runs locally. It is only reachable from the same machine or LAN.
 - BLE range is roughly 10 meters / 30 feet. Body occlusion reduces this.
 - The server auto-reconnects dropped devices when they come back in range.
-- Device events and many request outcomes are logged locally. Do not assume a
-  request is fully accountable unless its result/log includes actor, stage, and
-  a request id; request-id/source-channel logging is planned but not complete.
+- Device request envelopes and outcomes are logged locally with `request_id`,
+  `source_channel`, self-reported `actor`, target alias, request, and stage.
+  REST/API-originated request results are also broadcast to connected browser
+  UIs so local observers can see threadborn/API touch outcomes as they happen.
 """
     return skill

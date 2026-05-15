@@ -472,6 +472,100 @@ select:focus { border-color: var(--accent-cyan); }
 .log-device { color: var(--accent-amber); }
 .log-detail { color: var(--text-secondary); }
 
+.reach-event {
+    background: var(--bg-primary);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    padding: 14px;
+    margin-bottom: 12px;
+}
+
+.reach-event-head {
+    display: flex;
+    justify-content: space-between;
+    gap: 12px;
+    align-items: flex-start;
+    margin-bottom: 6px;
+}
+
+.reach-actor { color: var(--accent-cyan); font-weight: 600; }
+.reach-arrow { color: var(--text-dim); margin: 0 6px; }
+.reach-target { color: var(--accent-amber); font-weight: 600; }
+
+.reach-stage {
+    padding: 2px 8px;
+    border-radius: 999px;
+    font-size: 0.75rem;
+    white-space: nowrap;
+    border: 1px solid var(--border);
+}
+
+.reach-stage-ok { color: var(--accent-green); border-color: rgba(74, 222, 128, 0.45); }
+.reach-stage-warn { color: var(--accent-amber); border-color: rgba(251, 191, 36, 0.45); }
+.reach-stage-neutral { color: var(--text-secondary); }
+
+.reach-meta,
+.reach-details,
+.reach-response-status {
+    color: var(--text-dim);
+    font-size: 0.78rem;
+}
+
+.reach-request {
+    margin-top: 8px;
+    color: var(--text-primary);
+}
+
+.reach-note {
+    margin-top: 8px;
+    color: var(--accent-purple);
+    white-space: pre-wrap;
+}
+
+.reach-truth {
+    margin-top: 8px;
+    color: var(--text-secondary);
+    white-space: pre-wrap;
+}
+
+.reach-details {
+    margin-top: 8px;
+}
+
+.reach-details code {
+    color: var(--text-secondary);
+}
+
+.reach-response {
+    margin-top: 12px;
+}
+
+.reach-response label {
+    display: block;
+    color: var(--text-secondary);
+    font-size: 0.8rem;
+    margin-bottom: 4px;
+}
+
+.reach-response textarea {
+    width: 100%;
+    resize: vertical;
+    min-height: 56px;
+    background: var(--bg-input);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-sm);
+    color: var(--text-primary);
+    padding: 8px;
+    font: inherit;
+}
+
+.reach-response-actions {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    margin-top: 6px;
+}
+
 .log-controls {
     display: flex;
     gap: 8px;

@@ -6,6 +6,7 @@
 let ws = null;
 let autoScroll = true;
 let deviceState = { devices: {}, remembered: {}, last_scan: [], connected_count: 0 };
+let reachEvents = [];
 
 // Plugin status hooks: each plugin registers a callback to update itself
 // when device state changes. Populated by plugin JS via control_js().
@@ -118,7 +119,12 @@ function handleMessage(msg) {
                 window._pluginRequestResultHooks.forEach(function(hook) {
                     try { hook(msg); } catch (e) { console.error('Plugin request-result hook error:', e); }
                 });
+                loadReachEvents();
             }
+            break;
+        case 'reach_event_updated':
+            upsertReachEvent(msg.event);
+            renderReachEvents();
             break;
     }
 }
@@ -134,6 +140,9 @@ function initTabs() {
             document.querySelectorAll('.tab-content').forEach(c => c.classList.remove('active'));
             tab.classList.add('active');
             document.getElementById('tab-' + tab.dataset.tab).classList.add('active');
+            if (tab.dataset.tab === 'reach-journal') {
+                loadReachEvents();
+            }
         });
     });
 }
@@ -518,6 +527,125 @@ function clearLogs() {
 }
 
 // ------------------------------------------------------------------
+// Reach Journal
+// ------------------------------------------------------------------
+
+async function loadReachEvents() {
+    const list = document.getElementById('reach-journal-list');
+    if (!list) return;
+    try {
+        const resp = await fetch('/api/reach-events?limit=100', { cache: 'no-store' });
+        if (!resp.ok) throw new Error('status ' + resp.status);
+        const data = await resp.json();
+        reachEvents = data.events || [];
+        renderReachEvents();
+    } catch (e) {
+        list.innerHTML = '<div class="empty-state"><div>Could not load reach events: ' + esc(e.message) + '</div></div>';
+    }
+}
+
+function upsertReachEvent(event) {
+    if (!event || !event.request_id) return;
+    const idx = reachEvents.findIndex(e => e.request_id === event.request_id);
+    if (idx >= 0) {
+        reachEvents[idx] = event;
+    } else {
+        reachEvents.unshift(event);
+    }
+}
+
+function renderReachEvents() {
+    const list = document.getElementById('reach-journal-list');
+    if (!list) return;
+
+    if (!reachEvents.length) {
+        list.innerHTML = '<div class="empty-state"><div class="empty-state-icon">&#x1F4AB;</div><div>No reach events recorded yet</div></div>';
+        return;
+    }
+
+    list.innerHTML = reachEvents.map(event => renderReachEvent(event)).join('');
+}
+
+function renderReachEvent(event) {
+    const requestId = event.request_id || '';
+    const actor = event.actor || 'Unknown';
+    const target = event.target_alias || event.target_address || 'unknown target';
+    const stage = event.stage || 'unknown';
+    const ok = event.ok === true;
+    const stageClass = ok ? 'reach-stage-ok' : (event.ok === false ? 'reach-stage-warn' : 'reach-stage-neutral');
+    const note = event.note ? `<div class="reach-note">"${esc(event.note)}"</div>` : '';
+    const truth = event.truth_note ? `<div class="reach-truth">${esc(event.truth_note)}</div>` : '';
+    const response = event.response_note || '';
+    return `
+        <div class="reach-event" data-request-id="${esc(requestId)}">
+            <div class="reach-event-head">
+                <div>
+                    <span class="reach-actor">${esc(actor)}</span>
+                    <span class="reach-arrow">→</span>
+                    <span class="reach-target">${esc(target)}</span>
+                </div>
+                <span class="reach-stage ${stageClass}">${esc(stage)}</span>
+            </div>
+            <div class="reach-meta">
+                ${esc(formatReachTime(event.received_at))} · ${esc(event.source_channel || 'unknown')} · ${esc(event.actor_trust || 'self_reported')}
+            </div>
+            <div class="reach-request">${esc(event.request || 'request')} ${esc(formatReachParams(event.request_params || {}))}</div>
+            ${note}
+            ${truth}
+            <details class="reach-details">
+                <summary>request_id</summary>
+                <code>${esc(requestId)}</code>
+            </details>
+            <div class="reach-response">
+                <label for="reach-response-${esc(requestId)}">Human response note</label>
+                <textarea id="reach-response-${esc(requestId)}" rows="2" placeholder="How did this reach land?">${esc(response)}</textarea>
+                <div class="reach-response-actions">
+                    <button class="btn btn-small" onclick="saveReachResponse('${escAttr(requestId)}')">Save response</button>
+                    <span class="reach-response-status" id="reach-response-status-${esc(requestId)}">${event.response_at ? 'Saved ' + esc(formatReachTime(event.response_at)) : ''}</span>
+                </div>
+            </div>
+        </div>`;
+}
+
+async function saveReachResponse(requestId) {
+    const textarea = document.getElementById('reach-response-' + requestId);
+    const status = document.getElementById('reach-response-status-' + requestId);
+    if (!textarea) return;
+    if (status) status.textContent = 'Saving...';
+    try {
+        const resp = await fetch('/api/reach-events/' + encodeURIComponent(requestId) + '/response-note', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ note: textarea.value, author: 'Human' })
+        });
+        if (!resp.ok) throw new Error('status ' + resp.status);
+        const data = await resp.json();
+        upsertReachEvent(data.event);
+        renderReachEvents();
+    } catch (e) {
+        if (status) status.textContent = 'Save failed: ' + e.message;
+    }
+}
+
+function formatReachParams(params) {
+    const parts = [];
+    if (params.duration !== undefined) parts.push(params.duration + 's');
+    if (params.intensity !== undefined) parts.push('i' + params.intensity);
+    Object.entries(params || {}).forEach(([key, value]) => {
+        if (key === 'duration' || key === 'intensity') return;
+        parts.push(key + '=' + value);
+    });
+    return parts.length ? parts.join(' ') : '';
+}
+
+function formatReachTime(value) {
+    if (!value) return 'unknown time';
+    const d = new Date(value);
+    if (Number.isNaN(d.getTime())) return value;
+    return d.toLocaleString();
+}
+
+// ------------------------------------------------------------------
 // Helpers
 // ------------------------------------------------------------------
 
@@ -526,6 +654,10 @@ function esc(str) {
     const div = document.createElement('div');
     div.textContent = String(str);
     return div.innerHTML;
+}
+
+function escAttr(str) {
+    return String(str || '').replace(/\\/g, '\\\\').replace(/'/g, "\\'").replace(/"/g, '&quot;');
 }
 
 function formatUptime(seconds) {

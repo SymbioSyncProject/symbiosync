@@ -93,6 +93,7 @@ person whose body, devices, and consent are involved.
 - WebSocket API for live logs/status and UI request dispatch
 - Browser-based UI with plugin-contributed tabs and controls
 - Device plugin architecture (`Device` ABC + registered plugin classes)
+- Reach Journal for local request/result feedback and human response notes
 - Generated Symbio companion skill via `/api/skill`
 - Local JSON config, local rotating JSONL logs, and local SQLite device data
 
@@ -193,6 +194,8 @@ Windows owns the adapter, WSL cannot use it at the same time.
 | DELETE | `/api/device/{address}` | Forget a remembered device |
 | POST | `/api/stop` | Stop all connected devices |
 | GET | `/api/logs` | Recent local log entries and log-file info |
+| GET | `/api/reach-events` | Recent local reach/touch events with request-result truth |
+| POST | `/api/reach-events/{request_id}/response-note` | Add or update the human response note for a reach event |
 | POST | `/api/restart` | Restart the local device manager without changing remembered devices or plugin config |
 | GET | `/api/plugins` | Registered plugins and their UI contributions |
 | POST | `/api/plugins/{plugin_type}/toggle` | Set a plugin active/dormant |
@@ -238,6 +241,9 @@ Request results include a server-generated accountability envelope:
 REST/API-originated request results are also broadcast to connected browser UIs
 over WebSocket so local observers can see threadborn/API touch outcomes as they
 happen.
+
+See [Reach Journal](docs/REACH_JOURNAL.md) for the local feedback surface that
+records request/result truth alongside optional human response notes.
 
 ### WebSocket
 

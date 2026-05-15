@@ -536,6 +536,7 @@ async def api_reach_response_note(request_id: str, body: dict):
         request_id,
         body.get("note", ""),
         body.get("author", "Human"),
+        body.get("source_channel", "local_ui"),
     )
     if not event:
         raise HTTPException(status_code=404, detail="Reach event not found")

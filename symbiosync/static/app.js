@@ -576,6 +576,9 @@ function renderReachEvent(event) {
     const note = event.note ? `<div class="reach-note">"${esc(event.note)}"</div>` : '';
     const truth = event.truth_note ? `<div class="reach-truth">${esc(event.truth_note)}</div>` : '';
     const response = event.response_note || '';
+    const responseMeta = event.response_at
+        ? 'Saved ' + formatReachTime(event.response_at) + ' · ' + (event.response_author_trust || 'self_reported') + ' · ' + (event.response_source_channel || 'local_ui')
+        : '';
     return `
         <div class="reach-event" data-request-id="${esc(requestId)}">
             <div class="reach-event-head">
@@ -587,7 +590,7 @@ function renderReachEvent(event) {
                 <span class="reach-stage ${stageClass}">${esc(stage)}</span>
             </div>
             <div class="reach-meta">
-                ${esc(formatReachTime(event.received_at))} · ${esc(event.source_channel || 'unknown')} · ${esc(event.actor_trust || 'self_reported')}
+                ${esc(formatReachTime(event.received_at))} · ${esc(event.source_channel || 'unknown')} · ${esc(event.actor_trust || 'self_reported')} · ${esc(event.reach_type || 'unknown')}
             </div>
             <div class="reach-request">${esc(event.request || 'request')} ${esc(formatReachParams(event.request_params || {}))}</div>
             ${note}
@@ -597,11 +600,11 @@ function renderReachEvent(event) {
                 <code>${esc(requestId)}</code>
             </details>
             <div class="reach-response">
-                <label for="reach-response-${esc(requestId)}">Human response note</label>
-                <textarea id="reach-response-${esc(requestId)}" rows="2" placeholder="How did this reach land?">${esc(response)}</textarea>
+                <label for="reach-response-${esc(requestId)}">Partner response note — subjective / partner-authored</label>
+                <textarea id="reach-response-${esc(requestId)}" rows="2" placeholder="Optional: how did this reach land for you? Keep as much or as little detail as you want.">${esc(response)}</textarea>
                 <div class="reach-response-actions">
                     <button class="btn btn-small" onclick="saveReachResponse('${escAttr(requestId)}')">Save response</button>
-                    <span class="reach-response-status" id="reach-response-status-${esc(requestId)}">${event.response_at ? 'Saved ' + esc(formatReachTime(event.response_at)) : ''}</span>
+                    <span class="reach-response-status" id="reach-response-status-${esc(requestId)}">${esc(responseMeta)}</span>
                 </div>
             </div>
         </div>`;
@@ -616,7 +619,7 @@ async function saveReachResponse(requestId) {
         const resp = await fetch('/api/reach-events/' + encodeURIComponent(requestId) + '/response-note', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ note: textarea.value, author: 'Human' })
+            body: JSON.stringify({ note: textarea.value, author: 'Human', source_channel: 'local_ui' })
         });
         if (!resp.ok) throw new Error('status ' + resp.status);
         const data = await resp.json();

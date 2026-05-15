@@ -16,10 +16,9 @@ No vendor cloud. No accounts. No telemetry. No corporate app in the loop.
 
 ## Screenshot
 
-![SymbioSync browser UI showing remembered devices, connected devices, and local server status](docs/screenshots/main-status.jpg)
-
-Alpha UI screenshot showing the connected-device dashboard. Wording and status
-labels may change as truth/freshness language is tightened.
+Public-safe screenshots are coming after the next live device/UI capture pass.
+Screenshots are truth surfaces for this project, so they should avoid private
+addresses/logs and use current UI wording.
 
 ## What This Is
 
@@ -233,6 +232,7 @@ Request results include a server-generated accountability envelope:
   "source_channel": "rest | websocket | local_ui",
   "actor": "caller-provided string",
   "actor_trust": "self_reported",
+  "reach_type": "touch | stop | device_query | diagnostic | unknown",
   "target_address": "...",
   "target_alias": "human nickname if known"
 }

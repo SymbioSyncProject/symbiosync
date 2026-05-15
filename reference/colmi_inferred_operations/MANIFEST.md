@@ -1,15 +1,13 @@
 # Curated Colmi / QRing APK static analysis references
 
-Source root: `D:\feedback\qring`
-Current project: `D:\SymbioSync`
+Source root: curated local QRing APK static-analysis notes.
 
-This folder is not a raw dump. It holds the first curated reference chunk from the old klaatu archaeology so the current Windows-first codebase can carry forward only useful protocol evidence.
+This folder is not a raw dump. It holds curated reference notes so SymbioSync can
+carry forward useful protocol evidence without publishing raw decompile output.
 
-Raw Java-derived operation references were moved out of this public-candidate repo to the private reference archive:
-
-- `https://github.com/SymbioSyncProject/symbiosync-inferred-operations-private`
-
-Keep only public-safe summaries, derived notes, and hand-curated protocol conclusions here.
+Keep only public-safe summaries, derived notes, and hand-curated protocol
+conclusions here. Raw Java-derived operation references and APK artifacts should
+stay out of this repo.
 
 ## Notes produced from this reference
 
@@ -56,4 +54,4 @@ Only the conclusions needed by the current app should be copied into this folder
 
 1. Inspect BigData bean/entity classes for manual HR/SpO2 and interval data layouts.
 2. Inspect `ReadSleepDetailsRsp.java` and `SleepNewProtoResp.java` to compare old UART sleep protocol with current BigData parser.
-3. Inspect current `D:\feedback` root scripts (`sleep_parse_v2.py`, `reparse_sleep.py`, `ring_explore.py`) and decide whether any should be copied forward or archived.
+3. Review local exploratory scripts, if available, and copy forward only public-safe conclusions.

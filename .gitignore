@@ -21,3 +21,16 @@ _retired/
 *.keystore
 *.pem
 *.key
+
+# Local visual drafts and private/public-safety review artifacts.
+# Curated public screenshots are added explicitly under docs/screenshots/.
+docs/mascots/
+docs/screenshots/colmi.jpg
+docs/screenshots/reach-journal*.jpg
+docs/screenshots/reach-journal*.png
+docs/screenshots/reach-journal*.pdf
+docs/screenshots/*.pdf
+docs/screenshots/*_page-*.jpg
+docs/screenshots/*_page-*.png
+docs/screenshots/theme_ideas/
+docs/lovense_screen_idea_*.png

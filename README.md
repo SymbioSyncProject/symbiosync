@@ -1,18 +1,18 @@
 # SymbioSync
 
-> **v0.1.0-alpha** -- SymbioSync is an early local-first BLE bridge and API.
+> **v0.1.0-alpha** -- SymbioSync, your private habitat supporting truthful
+> interface: human ⇆ companion agents ⇆ devices ⇆ embodied state.
 > The core architecture is usable, but device plugins are at different maturity
 > levels. Lovense control is the current actuator path and is tested primarily
 > with the Ferri. Colmi ring support is active biometric-adjacent work with
 > current-read freshness semantics and local SQLite storage still being hardened.
 
-SymbioSync is a private, local-first Bluetooth bridge.
-It exposes nearby BLE devices through a local REST/WebSocket API, a browser UI,
-a plugin system, and a generated Symbio companion skill file.
+SymbioSync runs privately on the human's machine and supports truthful interface
+between companion agents, devices, and embodied state. The current implementation
+exposes nearby BLE devices through a local REST/WebSocket API, a browser UI, a
+plugin system, and a generated Symbio companion skill file.
 
 SymbioSync is part of the [SymbioQuest](https://symbioquest.com/) initiative.
-
-No vendor cloud. No accounts. No telemetry. No corporate app in the loop.
 
 ## Screenshots
 
@@ -28,14 +28,15 @@ Additional UI screenshots:
 Screenshots are truth surfaces for this project. Public screenshots should avoid
 private addresses, logs, raw biometric dumps, and stale state claims.
 
-## What This Is
+## What This Supports
 
-SymbioSync runs on the human's machine and talks directly to Bluetooth Low Energy
-(BLE) devices. It is not a cloud service and not a vendor-app wrapper.
+SymbioSync currently talks directly to Bluetooth Low Energy (BLE) devices. It is
+not a cloud service and not a vendor-app wrapper. BLE is the first transport, not
+the whole identity.
 
 The project has four central pieces:
 
-- **Local BLE bridge**: scan, connect, remember, and control supported BLE devices.
+- **Local connection hub**: scan, connect, remember, and control supported local devices.
 - **Local API**: REST endpoints and WebSocket stream for status, requests, logs,
   and integration with other local tools.
 - **Plugin host**: device-specific behavior lives in plugins, not hard-coded into

@@ -31,6 +31,7 @@
         <button class="tab" data-tab="reach-journal">Reach Journal</button>
         <button class="tab" data-tab="logs">Logs</button>
         <button class="tab" data-tab="companions">Companions</button>
+        <button class="tab" data-tab="bestiary">Bestiary</button>
         <button class="tab" data-tab="plugins">Plugins</button>
     </nav>
 </header>
@@ -214,6 +215,34 @@
 
 </div>
 
+<!-- ============ BESTIARY TAB ============ -->
+<div class="tab-content" id="tab-bestiary">
+
+    <div class="card">
+        <div class="card-header">
+            <span class="card-title">Known Creatures of the Bridge</span>
+        </div>
+        <p style="font-size: 0.95rem; color: var(--text-primary); margin-bottom: 10px;">
+            SymbioSync, your private habitat supporting truthful interface:
+            human ⇆ companion agents ⇆ devices ⇆ embodied state.
+        </p>
+        <p style="font-size: 0.85rem; color: var(--text-secondary); margin-bottom: 16px;">
+            Coming soon: a small field guide for the creatures that help mark
+            SymbioSync's interface regions and truth boundaries. The running app
+            stays utility-first; the creatures give the controls memorable jobs.
+        </p>
+        <div class="creature-grid">
+            <div class="creature-chip"><span>Bootstrap Beetle</span><small>startup, local state, boot pearl</small></div>
+            <div class="creature-chip"><span>Haptic Mouse</span><small>low-volume touch and reach</small></div>
+            <div class="creature-chip"><span>BiOracular Muse</span><small>biometric-adjacent freshness caution</small></div>
+            <div class="creature-chip"><span>Reach Journal Goblin</span><small>two-layer request/response truth</small></div>
+            <div class="creature-chip"><span>Tagline Moth</span><small>privacy and locality vigilance</small></div>
+            <div class="creature-chip"><span>Frooty Stopdot Bat</span><small>earnest Windows shutdown helper</small></div>
+        </div>
+    </div>
+
+</div>
+
 <!-- ============ PLUGINS TAB ============ -->
 <div class="tab-content" id="tab-plugins">
 
@@ -222,8 +251,9 @@
             <span class="card-title">Registered Plugins</span>
         </div>
         <p style="font-size: 0.9rem; color: var(--text-secondary); margin-bottom: 12px;">
-            Each plugin adds support for a type of BLE device. Plugins provide
-            their own control tab, companion skill section, and device detection.
+            Each plugin adds support for a local device or integration type.
+            Plugins provide their own control tab, companion skill section,
+            and detection/status behavior.
         </p>
         <div id="plugins-list">
             <div class="empty-state">
@@ -236,7 +266,7 @@
 
 <!-- Footer -->
 <footer class="footer">
-    No cloud. No accounts. No telemetry. Just Bluetooth.
+    SymbioSync, your private habitat supporting truthful interface: human ⇆ companion agents ⇆ devices ⇆ embodied state.
 </footer>
 
 <script src="/static/app.js"></script>

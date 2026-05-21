@@ -48,6 +48,11 @@ Ask for missing context. Do not silently invent it.
    confidence.
 4. A short list of things SymbioSync must *not* claim yet.
 
+Consolidated human-readable behavior summaries live in
+[`../colmi_apk_behavior_atlas/`](../colmi_apk_behavior_atlas/). The packet and
+ledger are the evidence backend; the atlas is the map of what the APK appears to
+do, what remains unresolved, and what SymbioSync should or should not copy.
+
 ## Current known anomaly
 
 Local testing produced thousands of repeated HR `97` rows. Those rows were
@@ -63,3 +68,5 @@ history is treated as reliable body-state evidence.
 - `git_workflow.md` -- how to work without polluting public history.
 - `notes/` -- scratch notes that are safe to commit if they contain no private
   data or proprietary source dumps.
+- `java_file_ledger.csv` and `java_chunks/` -- mechanical accountability ledger
+  and chunked sibling reports for exhaustive Java coverage.

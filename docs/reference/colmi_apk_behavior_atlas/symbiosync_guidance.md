@@ -21,6 +21,10 @@ Every biometric-adjacent value should carry provenance:
 5. Implement historical HR/HRV/sleep/temperature as stored history, not current body-state.
 6. Keep OneKey out of normal health surfaces unless marked as synthetic/vendor-composite.
 
+Run 4 / next research round should focus on SpO2 historical reconciliation, not
+general APK wandering: `BloodOxygenRepository.syncAutoBloodOxygen(0/255)` and
+LargeData cmd `0x2A` versus SDK interval oxygen cmd `0x5F`.
+
 ## Internal shape
 
 Even if implemented in one file at first, keep conceptual boundaries clear:

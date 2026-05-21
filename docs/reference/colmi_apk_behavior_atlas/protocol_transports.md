@@ -1,7 +1,8 @@
-﻿# Protocol transports
+# Protocol transports
 
 The APK uses at least two distinct BLE transports. SymbioSync should preserve
 this split internally instead of flattening all Colmi traffic into one parser.
+For command-level details, see [Command and behavior matrix](command_matrix.md).
 
 ## UART small-data transport
 

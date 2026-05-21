@@ -25,6 +25,10 @@ Run 4 / next research round should focus on SpO2 historical reconciliation, not
 general APK wandering: `BloodOxygenRepository.syncAutoBloodOxygen(0/255)` and
 LargeData cmd `0x2A` versus SDK interval oxygen cmd `0x5F`.
 
+Use [Command and behavior matrix](command_matrix.md) as the quick reference when
+checking whether a proposed Colmi implementation path is live/manual, historical,
+setting/capability, cloud-sync, or synthetic/vendor-composite.
+
 ## Internal shape
 
 Even if implemented in one file at first, keep conceptual boundaries clear:

@@ -1,0 +1,183 @@
+Updated tasks (0 of 6 complete)
+
+Enumerating all .java files in decompiled source tree
+
+Search for all relevant terms (BLE, GATT, UUID, HR, SpO2, HRV, sleep, etc.)
+
+Inspect candidate classes for ring/BLE/biometric protocol logic
+
+Create apk_java_inventory_2026-05-18.md
+
+Create decompiled_walkthrough_2026-05-18.md
+
+Conditionally update colmi_protocol_inventory.md
+
+Ran LS(D:\feedback\qring\decompiled\sources)
+
+Ran LS(D:\SymbioSync\docs\reference\colmi_sibling_packet)
+
+Ran LS(D:\feedback\qring)
+
+Ran LS(D:\feedback\qring\decompiled\sources\com)
+
+Ran LS(D:\feedback\qring\decompiled4)
+
+Ran LS(D:\feedback\qring\obsidian_dissection)
+
+Ran LS(D:\feedback\qring\decompiled\sources\com\qcwireless)
+
+Ran LS(D:\feedback\qring\decompiled\sources\com\oudmon)
+
+Ran LS(D:\feedback\qring\decompiled\sources\com\cxxyuek)
+
+Ran LS(D:\feedback\qring\decompiled4\sources)
+
+Ran LS(D:\feedback\qring\decompiled\sources\com\qcwireless\smart)
+
+Ran LS(D:\feedback\qring\decompiled\sources\com\oudmon\ble)
+
+Ran LS(D:\feedback\qring\decompiled\sources\com\oudmon\qc_utils)
+
+Ran LS(D:\feedback\qring\decompiled\sources\com\cxxyuek\app)
+
+Ran LS(D:\feedback\qring\decompiled4\sources\com)
+
+Ran LS(D:\feedback\qring\decompiled\sources\com\qcwireless\smart\base)
+
+Ran LS(D:\feedback\qring\decompiled\sources\com\qcwireless\smart\ui)
+
+Ran LS(D:\feedback\qring\decompiled\sources\com\oudmon\ble\base)
+
+Ran LS(D:\feedback\qring\decompiled\sources\com\oudmon\qc_utils\bluetooth)
+
+Ran LS(D:\feedback\qring\decompiled\sources\com\oudmon\qc_utils\bytes)
+
+Ran LS(D:\feedback\qring\decompiled\sources\com\cxxyuek\app\utyi)
+
+Ran LS(D:\feedback\qring\decompiled4\sources\com\oudmon)
+
+Ran LS(D:\feedback\qring\decompiled4\sources\com\qcwireless)
+
+Ran LS(D:\feedback\qring\decompiled4\sources\com\qcksix)
+
+Updated tasks (2 of 6 complete)
+
+Enumerate all .java files in decompiled source tree and count/group by package
+
+Search for all relevant terms (BLE, GATT, UUID, HR, SpO2, HRV, sleep, etc.)
+
+Inspecting candidate classes for protocol logic
+
+Create apk_java_inventory_2026-05-18.md
+
+Create decompiled_walkthrough_2026-05-18.md
+
+Conditionally update colmi_protocol_inventory.md
+Now let me search the obfuscated cxxyuek package for the key terms - this is where the actual command sending/parsing logic likely lives.
+
+Ran Bash(python -c " import os, re root = ...)
+
+Ran Bash(python -c " import os, re root = ...)
+The obfuscated package doesn't directly reference the BLE SDK classes. Let me search more broadly for the command-building and response-parsing logic.
+
+Ran Bash(python -c " import os, re root = r'D:\feedback\qring\decompiled\sources' # ...)
+
+Ran Bash(python -c " import os, re # Now search for (byte) 0x patterns across ALL ...)
+
+Ran Bash(python -c " import os, re # Try different hex patterns - maybe they use just ...)
+
+Explored 6 files
+Now let me look at the decompiled4 tree which has a different version of the decompiled code, and also check the com.qcksix package which may be a variant.
+
+Ran Bash(python -c " import os root = r'D:\feedback\qring\decompiled4\sources' for ...)
+The decompiled4 tree is much richer! It has the full request/response command classes. Let me read the most critical ones now.
+
+
+Updated tasks (2 of 3 complete)
+
+Write apk_java_inventory_2026-05-18.md
+
+Write decompiled_walkthrough_2026-05-18.md
+
+Updating colmi_protocol_inventory.md
+Now let me check the existing colmi_protocol_inventory.md to decide if it needs updating.
+
+Ran Bash(dir "D:\SymbioSync\docs\reference\colmi_protocol_inventory.md" 2>&1)
+
+Explored 1 file
+The existing inventory has good coverage from the prior session. The decompiled4 analysis provides significant new evidence. Let me add the key new findings.
+
+Attempted to run Edit(D:\SymbioSync\docs\reference\colmi_protocol_inventory.md)
++0
+-0
+
+Explored 1 file
+
+Ran Edit(D:\SymbioSync\docs\reference\colmi_protocol_inventory.md)
++11
+-0
+Now add the new rows to the request/response matrix and the implementation parity checklist:
+
+Ran Edit(D:\SymbioSync\docs\reference\colmi_protocol_inventory.md)
++13
+-1
+
+Ran Edit(D:\SymbioSync\docs\reference\colmi_protocol_inventory.md)
++6
+-1
+
+Updated tasks (3 of 3 complete)
+
+Write apk_java_inventory_2026-05-18.md
+
+Write decompiled_walkthrough_2026-05-18.md
+
+Conditionally update colmi_protocol_inventory.md
+All three deliverables are complete. Here is the final report:
+Summary
+Completed a deep systematic review of the QRing decompiled APK (decompiled4 tree, ~4,372 .java files) and produced three deliverables documenting the full BLE protocol stack from connection to biometric data delivery.
+Files Modified
+1. D:\SymbioSync\docs\reference\colmi_sibling_packet\apk_java_inventory_2026-05-18.md (NEW — 22,246 chars)
+Complete inventory of all .java files grouped by package, covering:
+com.oudmon.ble.base.bluetooth.* — 20 files: BLE connection lifecycle, data routing, command dispatch
+com.oudmon.ble.base.communication.* — 30+ files: Protocol constants, request/response classes, utilities
+com.oudmon.ble.base.communication.req.* — 50+ request classes with command bytes and sub-data layouts
+com.oudmon.ble.base.communication.rsp.* — 40+ response classes with acceptData parsing logic
+com.oudmon.ble.base.communication.bigData.* — Entity classes and callback interfaces
+com.realsil.sdk.bbpro.params.Mmi — Command byte constants used as MixtureReq command IDs
+com.qcwireless.smart.* — QRing app UI (secondary)
+com.cxxyuek.app.utyi.* — Obfuscated app code (no direct BLE references)
+2. D:\SymbioSync\docs\reference\colmi_sibling_packet\decompiled_walkthrough_2026-05-18.md (NEW — 38,838 chars)
+Comprehensive walkthrough of every relevant class with:
+Section 1: BLE connection & service discovery (Constants UUIDs, BleBaseControl lifecycle, BleOperateManager execution flow)
+Section 2: Small-data protocol (16-byte UART packet format, BaseReqCmd/MixtureReq, CommandHandle dispatch, QCDataParser routing, BeanFactory full command ID→response map)
+Section 3: Biometric command walkthrough (HR realtime, HR interval, HR settings, HRV, SpO2, BP, pressure, battery, sleep, steps)
+Section 4: Large-data protocol (custom service UUIDs, 0xBC header format, LargeDataParser reassembly, LargeDataHandler full command map, sleep/HR/SpO2/temperature parsing details)
+Section 5: Data flow summary (small-data path, large-data path, command sending path)
+Section 6: Critical findings for SymbioSync (7 major findings)
+Section 7: Command ID quick reference tables
+3. D:\SymbioSync\docs\reference\colmi_protocol_inventory.md (UPDATED)
+Added 12 new rows to source artifact ledger and 13 new rows to request/response matrix, plus 6 new implementation parity checklist items.
+Key Findings
+⚠️ CRITICAL: RealTimeHeartRateRsp (cmd 0x1E) byte offset discrepancy
+The APK has a separate response class for device-initiated HR notifications (RealTimeHeartRateRsp, cmd 0x1E=30) that reads bArr[0] (= data[1] in raw packet) as the HR value. SymbioSync reads data[3] for all notifications. If the ring sends periodic HR via cmd 0x1E, SymbioSync is reading the wrong byte. This could explain the repeated HR 97 anomaly — data[3] might be a status byte while data[1] contains the actual HR.
+Confirmed: High-bit (0x80) flag
+Constants.m = 128 confirms data[0] & 0x7F extracts the command ID. The high bit is a flag (likely notification vs response indicator). SymbioSync's masking is correct.
+Confirmed: Interval HR bug in APK
+syncIntervalHeartRate() calls syncIntervalBloodOxygenReal() (cmdId 95/SpO2) instead of syncIntervalHeartRateReal() (cmdId 117/HR). SymbioSync must use cmdId 117.
+New: Sleep lunch nap channel (cmdId 62)
+The APK has a second sleep data channel for daytime naps, alongside night sleep (cmdId 39).
+New: Interval temperature (cmdId 119)
+2-byte LE values divided by 100 for °C. Not yet implemented in SymbioSync.
+New: DeviceSupportFunctionRsp (cmd 0x3C)
+9-byte bitmask with ~30 capability flags. Should be queried on connect to determine ring capabilities.
+Assumptions & Decisions
+Used decompiled4 tree as the primary source (richer output than decompiled)
+Treated the com.cxxyuek.app.utyi obfuscated package as non-protocol (no direct BLE SDK references found)
+Did not inspect the QRing app's ViewModel/activity orchestration code (would require reading ~200+ files in com.qcwireless.smart.*)
+Marked the RealTimeHeartRateRsp byte offset as the most critical finding requiring verification with actual BLE traffic
+Suggested Next Steps
+Verify RealTimeHeartRateRsp byte offset — Capture actual BLE traffic to determine whether the ring uses cmd 0x1E or 0x69 for periodic HR notifications. If 0x1E, the SymbioSync parser needs a separate code path.
+Implement DeviceSupportFunctionRsp query — On connect, send cmd 0x3C to determine ring capabilities before attempting biometric commands.
+Implement BigData interval HR (cmdId 117) — Background historical harvest using the correct cmdId (not 95 as the buggy APK method uses).
+Investigate the repeated-97 anomaly with the new knowledge that cmd 0x1E notifications have a different payload layout.

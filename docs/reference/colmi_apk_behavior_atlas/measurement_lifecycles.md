@@ -1,6 +1,7 @@
-﻿# Measurement lifecycle map
+# Measurement lifecycle map
 
 This page summarizes the live/manual and historical/device-sync flows found so far.
+For a denser implementation table, see [Command and behavior matrix](command_matrix.md).
 
 ## Shared manual/live request family
 

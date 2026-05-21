@@ -38,6 +38,7 @@ are separated so SymbioSync can copy transport truth without copying vendor lies
 
 - [Transport model](protocol_transports.md)
 - [Measurement lifecycle map](measurement_lifecycles.md)
+- [Command and behavior matrix](command_matrix.md)
 - [Storage and sync model](storage_and_sync.md)
 - [OneKey synthetic values](onekey_synthetic_values.md)
 - [Implementation guidance for SymbioSync](symbiosync_guidance.md)
@@ -55,3 +56,4 @@ are separated so SymbioSync can copy transport truth without copying vendor lies
 - `../colmi_sibling_packet/java_chunks/ch0015_app_orchestration_strong_hits.md`
 - `../colmi_sibling_packet/java_chunks/ch0016_app_orchestration_strong_hits.md`
 - `../colmi_sibling_packet/java_chunks/ch0018_app_orchestration_strong_hits.md`
+

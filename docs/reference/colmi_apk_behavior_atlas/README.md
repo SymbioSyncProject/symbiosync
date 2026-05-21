@@ -13,6 +13,8 @@ are separated so SymbioSync can copy transport truth without copying vendor lies
 - Java files accounted for in ledger: 7,769
 - Rows marked `needs_deep_read` by first classifier: 1,343
 - Generated chunks: 41
+- Ledger IDs reconciled from completed chunk reports: 278
+- Initial `needs_deep_read` rows still not indexed: 1,067
 - Completed first-wave chunk reports: app wiring, DB/DAO, BloodOxygenRepository,
   HR/HRV/Sleep repositories, NetService/cloud sync, SpO2 UI lifecycle, protocol
   core, HR/HRV/OneKey UI lifecycle.
@@ -44,6 +46,8 @@ are separated so SymbioSync can copy transport truth without copying vendor lies
 ## Primary evidence files
 
 - `../colmi_sibling_packet/java_accounting_summary.md`
+- `../colmi_sibling_packet/java_deep_read_index_summary.md`
+- `../colmi_sibling_packet/java_deep_read_index.csv`
 - `../colmi_sibling_packet/java_grunge_chunk_manifest.csv`
 - `../colmi_sibling_packet/java_chunks/custom_protocol_core_largedata_commandhandle.md`
 - `../colmi_sibling_packet/java_chunks/custom_spo2_ui_lifecycle.md`

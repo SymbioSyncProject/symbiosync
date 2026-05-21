@@ -52,6 +52,17 @@ Map new-protocol IDs:
 
 ## Ledger integration
 
-Completed chunk reports should be reflected back into the master ledger with
-terminal statuses and atlas links. Until then, the ledger remains an accounting
-backend plus separate reports, not one unified completion table.
+First reconciliation pass now exists:
+
+- `../colmi_sibling_packet/java_deep_read_index.csv`
+- `../colmi_sibling_packet/java_deep_read_index_summary.md`
+
+It indexes 278 unique ledger IDs from completed chunk reports. Of the initial
+1,343 `needs_deep_read` rows, 276 are indexed and 1,067 remain not yet indexed.
+
+Remaining work:
+
+- normalize terminal status labels across early sibling report styles;
+- add atlas section links for high-value rows;
+- decide whether to update the master ledger in-place or keep a separate index;
+- continue chunk reads for the remaining high-value rows.

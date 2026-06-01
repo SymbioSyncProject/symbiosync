@@ -49,6 +49,10 @@ REQ_STOP_REALTIME    = 0x6A
 
 # BigData data IDs
 SLEEP_DATA_ID = 0x27
+BLOOD_OXYGEN_DATA_ID = 0x2A   # 42 = auto blood oxygen: per-day 49-byte records of
+                              # hourly (max,min) SpO2.  Verified live against R06_8945
+                              # 2026-05-31 -- the realtime 0x69/0x03 path never worked
+                              # (0 rows in 17 days); this BigData read does.
 
 # Scan patterns
 RING_NAMES = ["R02", "R06", "QRing", "Smart Ring", "Colmi"]
@@ -58,8 +62,9 @@ HR_INTERVAL        = 45.0      # re-request HR if no response
 HR_ACTIVE_WAIT     = 30.0      # consider HR "active" if response within this
 SPORTS_INTERVAL    = 60.0      # poll steps/calories
 BATTERY_INTERVAL   = 300.0     # poll battery; battery is slow-moving, keep BLE chatter low
-SPO2_INTERVAL      = 3600.0    # poll SpO2 hourly; it pauses HR and should stay infrequent.
-                               # More frequent SpO2 cycling has correlated with flaky BLE.
+SPO2_INTERVAL      = 3600.0    # (legacy realtime cycle -- deprecated, no longer used)
+SPO2_REFRESH       = 600.0     # re-read hourly SpO2 via the safe BigData path every 10 min.
+                               # BigData read does NOT pause HR, so it does not destabilize BLE.
 HISTORY_SYNC_INTERVAL = 30 * 60.0  # sync history every 30 min
 BACKFILL_DAYS      = 7
 
@@ -322,6 +327,45 @@ def parse_sleep_packets(packets: list[bytes]) -> dict | None:
         "days": days,
         "segments": segments,
     }
+
+
+def parse_spo2_packets(packets: list[bytes]) -> dict | None:
+    """Parse a BigData blood-oxygen response (0xBC 0x2A).
+
+    Reversed from QRing BloodOxygenRepository.syncAutoBloodOxygen$lambda$1 and
+    verified live 2026-05-31. Layout:
+      header (6 bytes): magic(0xBC), dataId(0x2A), len(u16le), crc16(u16le)
+      payload: (len / 49) day-records, 49 bytes each:
+        rec[0]          = days_ago (0 = today)
+        rec[1,3,..,47]  = 24 hourly MAX SpO2 %
+        rec[2,4,..,48]  = 24 hourly MIN SpO2 %
+      A value of 0 means "no reading that hour".
+    """
+    if not packets:
+        return None
+    first = packets[0]
+    if len(first) < 6 or first[0] != BIG_DATA_MAGIC or first[1] != BLOOD_OXYGEN_DATA_ID:
+        return None
+    declared_length = int.from_bytes(first[2:4], "little")
+    data = bytearray(first[6:])
+    for pkt in packets[1:]:
+        data.extend(pkt)
+    rec_count = (declared_length // 49) if declared_length else (len(data) // 49)
+    days = []
+    for r in range(rec_count):
+        rec = data[r * 49:(r + 1) * 49]
+        if len(rec) < 49:
+            break
+        days_ago = rec[0]
+        maxes = list(rec[1:49:2])   # offsets 1,3,..,47
+        mins = list(rec[2:49:2])    # offsets 2,4,..,48
+        hours = [
+            {"hour": h, "max": int(mx), "min": int(mn)}
+            for h, (mx, mn) in enumerate(zip(maxes, mins))
+            if mx or mn
+        ]
+        days.append({"days_ago": int(days_ago), "hours": hours})
+    return {"declared_length": int(declared_length), "days": days}
 
 
 def calc_sleep_score(total_min: float, deep_min: float, light_min: float,
@@ -735,6 +779,11 @@ class ColmiDevice(Device):
         self._sleep_queue: asyncio.Queue | None = None
         self._last_sleep: dict | None = None  # cached parsed sleep data
 
+        # BigData / SpO2 state (the working blood-oxygen path)
+        self._spo2_capture_active: bool = False
+        self._spo2_queue: asyncio.Queue | None = None
+        self._spo2_hourly: list | None = None  # latest parsed hourly SpO2 for today
+
     # ------------------------------------------------------------------
     # Device ABC implementation
     # ------------------------------------------------------------------
@@ -812,9 +861,10 @@ class ColmiDevice(Device):
 
             self.emit_event("RING_CONNECTED", f"{self.name} ({self.address})")
 
-            # Auto-sync sleep data in background (don't block connect)
+            # Auto-sync sleep + SpO2 in background (don't block connect)
             if self._big_data_available:
                 asyncio.create_task(self._auto_sync_sleep())
+                asyncio.create_task(self._auto_sync_spo2())
 
             return True
 
@@ -885,6 +935,15 @@ class ColmiDevice(Device):
                 if result:
                     return {"ok": True, "sleep": result}
                 return {"ok": False, "error": "sleep sync failed or no data"}
+            elif request == "sync_spo2":
+                result = await self.fetch_spo2()
+                if result and result.get("days"):
+                    return {"ok": True, "spo2": result, "current": self._spo2}
+                return {"ok": False, "error": "spo2 sync failed or no data"}
+            elif request == "get_spo2":
+                if self._spo2_hourly:
+                    return {"ok": True, "hourly": self._spo2_hourly, "current": self._spo2}
+                return {"ok": False, "error": "no spo2 data yet"}
             elif request == "get_sleep":
                 sleep = self._last_sleep or _db_get_latest_sleep(self._db_path)
                 if sleep:
@@ -1050,9 +1109,13 @@ class ColmiDevice(Device):
         # Must pause HR streaming first: sending SPO2_START while ring is in realtime
         # HR mode interrupts the HR stream and leaves the connection silent after
         # SPO2_STOP, triggering BLE supervision timeout.
-        if SPO2_INTERVAL > 0 and now - self._last_spo2_cycle >= SPO2_INTERVAL:
-            self._last_spo2_cycle = now   # mark now to prevent re-entry before task finishes
-            asyncio.create_task(self._run_spo2_cycle())
+        # NOTE: the old realtime SpO2 cycle (_run_spo2_cycle) is deprecated -- it paused
+        # HR and left the link silent, triggering the BLE supervision-timeout disconnects,
+        # and it never actually produced a reading (0 rows in 17 days). Replaced by the
+        # BigData read below, which does NOT pause HR and is therefore safe on a short cadence.
+        if now - self._last_spo2_cycle >= SPO2_REFRESH:
+            self._last_spo2_cycle = now
+            asyncio.create_task(self.fetch_spo2())
 
     async def _snapshot_hr(self, timeout: float = 45.0) -> dict:
         """On-demand single HR reading. Starts HR streaming and waits for first valid value."""
@@ -1072,30 +1135,22 @@ class ColmiDevice(Device):
         return {"ok": False, "error": f"timeout after {timeout}s - ring did not respond"}
 
     async def _snapshot_spo2(self, timeout: float = 10.0) -> dict:
-        """On-demand single SpO2 reading. Pauses HR, measures, resumes HR."""
+        """On-demand SpO2 via the BigData read (the path that actually works).
+
+        IMPORTANT: this returns the ring's most recent *hourly* auto-measured
+        SpO2, not a fresh spot measurement. The realtime spot-read path
+        (0x69/0x03) produces nothing on this ring (0 rows in 17 days) and
+        destabilizes BLE, so it is no longer used. The returned value may be up
+        to ~1h old; _last_spo2 carries the read time and current_biometrics
+        marks freshness accordingly. (timeout kept for signature compat.)
+        """
         if not self.connected or not self._client:
             return {"ok": False, "error": "not connected"}
-        prev_spo2 = self._last_spo2
-        try:
-            await self._write(request_stop_hr(), "HR_STOP_FOR_SPO2_SNAP")
-            await asyncio.sleep(0.2)
-            await self._write(request_spo2_start(), "SPO2_SNAP_START")
-        except Exception as e:
-            return {"ok": False, "error": str(e)}
-        deadline = time.time() + timeout
-        result = None
-        while time.time() < deadline:
-            await asyncio.sleep(0.5)
-            if self._last_spo2 and self._last_spo2 > prev_spo2:
-                result = {"ok": True, "spo2": self._spo2}
-                break
-        try:
-            await self._write(request_spo2_stop(), "SPO2_SNAP_STOP")
-            await asyncio.sleep(0.2)
-            await self._resume_hr_with_retry()
-        except Exception:
-            pass
-        return result or {"ok": False, "error": f"timeout after {timeout}s - no SpO2 response"}
+        await self.fetch_spo2()
+        if self._spo2 and self._spo2 > 0:
+            return {"ok": True, "spo2": self._spo2,
+                    "note": "latest hourly auto-SpO2 (not a fresh spot read)"}
+        return {"ok": False, "error": "no SpO2 data available from ring"}
 
     async def _run_spo2_cycle(self):
         """Background task: pause HR â†’ measure SpO2 â†’ resume HR.
@@ -1206,8 +1261,13 @@ class ColmiDevice(Device):
         elif request_id == REQ_TODAY_SPORTS:
             if len(data) >= 13:
                 steps = (data[1] << 16) | (data[2] << 8) | data[3]
-                calories = (data[7] << 16) | (data[8] << 8) | data[9]
+                calories_raw = (data[7] << 16) | (data[8] << 8) | data[9]
                 distance = (data[10] << 16) | (data[11] << 8) | data[12]
+                # Raw calorie field is milli-kcal: QRing displays getCalorie()/1000 as
+                # integer kcal (verified across TargetSetting/SportPlus/home adapters).
+                # 49800 raw -> 49 kcal. Truncate to match the official app exactly.
+                calories = calories_raw // 1000
+                # distance raw is already in METERS (QRing: getDistance()/1000 = km).
                 self._steps = steps
                 self._calories = calories
                 self._distance = distance
@@ -1233,10 +1293,19 @@ class ColmiDevice(Device):
             self.emit_event("RING_TIME_SET", "clock synchronized")
 
     def _bigdata_notification_handler(self, sender, data: bytearray):
-        """Handle BigData service notifications (sleep data, etc.)."""
+        """Handle BigData service notifications (sleep, SpO2, etc.).
+
+        Only one BigData capture runs at a time (fetch_* methods serialize via
+        _io_lock + their own active flags). Route every packet to whichever
+        capture is currently armed -- continuation packets carry no header, so
+        we cannot route by data-id beyond the first packet.
+        """
         if not data:
             return
         packet_bytes = bytes(data)
+        if self._spo2_capture_active and self._spo2_queue is not None:
+            self._spo2_queue.put_nowait(packet_bytes)
+            return
         if self._sleep_capture_active and self._sleep_queue is not None:
             self._sleep_queue.put_nowait(packet_bytes)
 
@@ -1339,6 +1408,76 @@ class ColmiDevice(Device):
                         f"total={total_min}m totals={totals}")
         return parsed
 
+    async def fetch_spo2(self) -> dict | None:
+        """Fetch today's hourly SpO2 via the BigData blood-oxygen read (0x2A).
+
+        This is the path that actually works on this ring. Unlike the old
+        realtime SpO2 cycle, it does NOT pause HR or leave the link silent, so
+        it does not trigger the BLE supervision-timeout disconnects.
+        Sets self._spo2 to the most recent hourly reading so the dashboard shows
+        a real value instead of '--'.
+        """
+        if not self.connected or not self._client:
+            return None
+        if not self._big_data_available:
+            self.emit_event("RING_SPO2_SKIP", "BigData service unavailable")
+            return None
+
+        self._spo2_queue = asyncio.Queue()
+        self._spo2_capture_active = True
+        packets = []
+        try:
+            # Empty/all form: BC 2A 00 00 FF FF  (len 0, crc 0xFFFF) -- verified live
+            request = bytearray([BIG_DATA_MAGIC, BLOOD_OXYGEN_DATA_ID, 0x00, 0x00, 0xFF, 0xFF])
+            async with self._io_lock:
+                await self._client.write_gatt_char(BIG_DATA_WRITE, request, response=False)
+            self.emit_event("RING_SPO2_REQ", f"requesting SpO2 ({request.hex()})")
+
+            while True:
+                try:
+                    timeout = 2.0 if packets else 8.0
+                    data = await asyncio.wait_for(self._spo2_queue.get(), timeout=timeout)
+                except asyncio.TimeoutError:
+                    if packets:
+                        break
+                    self.emit_event("RING_SPO2_TIMEOUT", "no SpO2 response")
+                    return None
+                packets.append(bytes(data))
+                if len(data) < 20:
+                    break  # short tail = end of stream
+        finally:
+            self._spo2_capture_active = False
+            self._spo2_queue = None
+
+        parsed = parse_spo2_packets(packets)
+        if not parsed or not parsed.get("days"):
+            self.emit_event("RING_SPO2_EMPTY", "SpO2 response had no readings")
+            return parsed
+
+        today = next((d for d in parsed["days"] if d.get("days_ago") == 0), parsed["days"][0])
+        hours = today.get("hours", [])
+        self._spo2_hourly = hours
+        if hours:
+            latest = hours[-1]
+            value = latest.get("max") or latest.get("min") or 0
+            if 50 < value <= 100:
+                self._spo2 = value
+                self._last_spo2 = time.time()
+                try:
+                    _db_record_spo2(self._db_path, self._ring_id, self._session_id, value)
+                except Exception:
+                    pass
+            self.emit_event("RING_SPO2", f"{value}% (hour {latest.get('hour')}, {len(hours)} hrs today)")
+        return parsed
+
+    async def _auto_sync_spo2(self):
+        """Auto-fetch SpO2 after connect (background task)."""
+        try:
+            await asyncio.sleep(3.5)  # let init + sleep sync settle first
+            await self.fetch_spo2()
+        except Exception as e:
+            self.emit_event("RING_SPO2_WARN", f"auto-sync failed: {e}")
+
     async def _auto_sync_sleep(self):
         """Auto-fetch sleep data after connect (background task)."""
         try:
@@ -1411,7 +1550,9 @@ class ColmiDevice(Device):
 
         <!-- SpO2 -->
         <div class="card" style="text-align: center;">
-            <div class="card-title">Blood Oxygen</div>
+            <div class="card-title">Blood Oxygen
+                <button class="btn btn-small" onclick="colmiSyncSpo2()" style="float: right; font-size: 0.7rem; padding: 3px 8px;">Sync</button>
+            </div>
             <div id="colmi-spo2-value" style="font-size: 3rem; font-weight: 700; color: var(--accent-cyan); margin: 12px 0;">--</div>
             <div style="font-size: 0.9rem; color: var(--text-dim);">SpO2 %</div>
             <div id="colmi-spo2-age" style="font-size: 0.75rem; color: var(--text-dim); margin-top: 4px;"></div>
@@ -1550,7 +1691,7 @@ function colmiUpdateDisplay(data) {
     document.getElementById('colmi-steps').textContent = s.steps > 0 ? s.steps.toLocaleString() : '0';
     document.getElementById('colmi-calories').textContent = s.calories > 0 ? s.calories + ' kcal' : '0';
     if (s.distance > 0) {
-        var meters = s.distance / 100;
+        var meters = s.distance;  // raw distance is already in meters (QRing: /1000 = km)
         var miles = meters / 1609.344;
         var distText = meters < 1000
             ? meters.toFixed(0) + ' m / ' + miles.toFixed(2) + ' mi'
@@ -1618,6 +1759,17 @@ function colmiSyncSleep() {
     });
     if (!addr) { return; }
     sendWS({ action: 'request', address: addr, request: 'sync_sleep' });
+}
+
+function colmiSyncSpo2() {
+    var addr = null;
+    Object.entries(deviceState.devices || {}).forEach(function(entry) {
+        if (entry[1].connected && entry[1].device_type === 'colmi') {
+            addr = entry[0];
+        }
+    });
+    if (!addr) { return; }
+    sendWS({ action: 'request', address: addr, request: 'sync_spo2' });
 }
 
 // Hook into global status updates

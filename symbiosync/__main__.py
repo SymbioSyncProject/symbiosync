@@ -2,7 +2,7 @@
 SymbioSync - run with: python -m symbiosync
 
 Private habitat supporting truthful interface:
-human <-> companion agents <-> devices <-> embodied state.
+connection <-> understanding.
 """
 
 import argparse
@@ -78,7 +78,7 @@ def main():
 
     print(f"SymbioSync v{__version__}")
     print("Private habitat supporting truthful interface:")
-    print("human <-> companion agents <-> devices <-> embodied state")
+    print("connection <-> understanding")
     print()
 
     if _port_accepts_connections(args.host, args.port):

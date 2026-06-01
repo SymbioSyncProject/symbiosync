@@ -3,7 +3,7 @@ title SymbioSync
 cd /d "%~dp0"
 echo.
 echo  SymbioSync, your private habitat supporting truthful interface:
-echo  human ^<^-^> companion agents ^<^-^> devices ^<^-^> embodied state.
+echo  connection ^<^-^> understanding.
 echo.
 echo  Starting Windows-local server... browser will open automatically.
 echo  Default bind is 127.0.0.1 so this stays on this machine.

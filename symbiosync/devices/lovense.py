@@ -402,7 +402,7 @@ class LovenseDevice(Device):
         try:
             await self._client.write_gatt_char(self._tx_uuid, wire_text.encode(), response=False)
             self._last_request_at = time.time()
-            self.emit_event("TX", wire_text.strip())
+            self.emit_event("TX", wire_text.strip() + (" (keepalive)" if request_name == "keepalive" else ""))
             return self._write_result(request=request_name, wire_text=wire_text, ok=True)
         except Exception as e:
             idle = round(time.time() - self._last_request_at, 1) if self._last_request_at else "?"
@@ -427,6 +427,11 @@ class LovenseDevice(Device):
         if msg == "2;":
             # Keepalive response (Status:1 -> "2;")
             self.emit_event("RX", "keepalive OK")
+        elif msg == "unknown;":
+            # Device didn't recognize the command (e.g. Ferri ignores Status:1).
+            # Harmless: the keepalive's job is to keep the BLE link warm, not to
+            # get a meaningful reply.
+            self.emit_event("RX", "keepalive (device ignores)")
         elif msg == "OK;":
             self.emit_event("RX", "OK")
         elif msg.startswith("G") and len(msg) > 6:

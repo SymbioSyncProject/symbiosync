@@ -29,10 +29,12 @@ class DeviceCapability(str, Enum):
     # Settings
     LED = "led"                       # status LED toggle
     POWER_OFF = "power_off"           # remote power-off
-    # Biometric (non-Lovense, e.g. Colmi ring)
+    # Biometric (non-Lovense, e.g. Colmi ring, Polar H10)
     HEART_RATE = "heart_rate"
     SPO2 = "spo2"
     STEPS = "steps"
+    HRV = "hrv"                       # RR-interval heart-rate variability (Polar H10)
+    ECG = "ecg"                       # raw single-lead ECG waveform (Polar H10 PMD)
 
 
 @dataclass

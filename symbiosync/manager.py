@@ -17,6 +17,7 @@ from bleak import BleakScanner
 from .devices.base import Device, DeviceInfo
 from .devices.colmi import ColmiDevice, set_db_path as set_colmi_db_path
 from .devices.lovense import LovenseDevice
+from .devices.polar import PolarDevice
 from .logger import Logger
 
 
@@ -24,6 +25,7 @@ from .logger import Logger
 DEVICE_PLUGINS: list[Type[Device]] = [
     LovenseDevice,
     ColmiDevice,
+    PolarDevice,
 ]
 
 
@@ -433,8 +435,14 @@ class DeviceManager:
                 await asyncio.sleep(10.0)
                 continue
 
-            target_count = len(dropped) + len(remembered_not_connected)
-            self.logger.log("RECONNECT", f"Scanning for {target_count} device(s)...")
+            reconnect_names = [dev.name or addr for addr, dev in dropped]
+            autoconnect_names = [info.get("name") or addr for addr, info in remembered_not_connected.items()]
+            parts = []
+            if reconnect_names:
+                parts.append(f"reconnecting dropped ({', '.join(reconnect_names)})")
+            if autoconnect_names:
+                parts.append(f"looking for remembered devices ({', '.join(autoconnect_names)})")
+            self.logger.log("RECONNECT", "Scanning — " + "; ".join(parts))
 
             try:
                 found = await BleakScanner.discover(timeout=5.0)

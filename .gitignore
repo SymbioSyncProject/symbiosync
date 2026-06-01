@@ -34,3 +34,8 @@ docs/screenshots/*_page-*.jpg
 docs/screenshots/*_page-*.png
 docs/screenshots/theme_ideas/
 docs/lovense_screen_idea_*.png
+
+# Local/private working docs and snapshots — keep out of the public repo.
+_backups/
+docs/reference/embodiment_loop_workstation.md
+docs/reference/*.pdf

@@ -88,10 +88,10 @@ old raw data into normal project code.
 
 ## Protocol sources
 
-- curated QRing APK references in `../../reference/colmi_inferred_operations/`
+- curated QRing APK references in `../../docs/reference/colmi_inferred_operations/`
 - Puxtril Colmi BLE protocol notes
 - prior sleep parsing and scoring findings in
-  `../../reference/colmi_inferred_operations/prior_findings/`
+  `../../docs/reference/colmi_inferred_operations/prior_findings/`
 - local field tests against Colmi/QRing hardware
 
 ## Known limitations

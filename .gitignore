@@ -39,3 +39,6 @@ docs/lovense_screen_idea_*.png
 _backups/
 docs/reference/embodiment_loop_workstation.md
 docs/reference/*.pdf
+
+# Vendored third-party reference (Intiface/Buttplug source) — for reading, not ours to ship.
+docs/reference/intiface-central-main/

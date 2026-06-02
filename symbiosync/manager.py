@@ -288,17 +288,25 @@ class DeviceManager:
         return ok
 
     async def disconnect_device(self, address: str):
-        """Disconnect a specific device."""
+        """Disconnect a device. Hang-proof: the device is removed from the live
+        set regardless, and a wedged BLE disconnect is bounded by a timeout — so
+        one bad device can never block a restart/reset."""
         address = address.upper()
-        device = self.devices.get(address)
-        if device:
-            await device.disconnect()
-            del self.devices[address]
+        device = self.devices.pop(address, None)
+        if not device:
+            return
+        try:
+            await asyncio.wait_for(device.disconnect(), timeout=5.0)
+        except Exception as e:
+            self.logger.log("DISCONNECT_FORCED", f"{address}: {type(e).__name__} — removed anyway", level="warn")
 
     async def disconnect_all(self):
-        """Disconnect all devices."""
-        for addr in list(self.devices.keys()):
-            await self.disconnect_device(addr)
+        """Disconnect all devices in parallel, bounded so one wedged device
+        can't stall the whole teardown."""
+        await asyncio.gather(
+            *(self.disconnect_device(a) for a in list(self.devices.keys())),
+            return_exceptions=True,
+        )
 
     # ------------------------------------------------------------------
     # Remember / forget
@@ -394,14 +402,19 @@ class DeviceManager:
         self.logger.log("MANAGER", "Background tasks started")
 
     async def stop(self):
-        """Stop all background tasks and disconnect all devices."""
+        """Stop background tasks + disconnect all devices — hang-proof, so a
+        restart/reset always completes even if a task or device is wedged."""
         for task in [self._keepalive_task, self._reconnect_task]:
             if task:
                 task.cancel()
                 try:
-                    await task
-                except asyncio.CancelledError:
+                    await asyncio.wait_for(task, timeout=5.0)
+                except (asyncio.CancelledError, asyncio.TimeoutError):
                     pass
+                except Exception:
+                    pass
+        self._keepalive_task = None
+        self._reconnect_task = None
         await self.disconnect_all()
         self.logger.log("MANAGER", "Stopped")
 

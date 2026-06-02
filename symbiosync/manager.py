@@ -15,18 +15,14 @@ from typing import Type
 from bleak import BleakScanner
 
 from .devices.base import Device, DeviceInfo
-from .devices.colmi import ColmiDevice, set_db_path as set_colmi_db_path
-from .devices.lovense import LovenseDevice
-from .devices.polar import PolarDevice
+from .devices.loader import discover_plugins
 from .logger import Logger
 
 
-# All registered device plugins. Add new plugins here.
-DEVICE_PLUGINS: list[Type[Device]] = [
-    LovenseDevice,
-    ColmiDevice,
-    PolarDevice,
-]
+# The core imports NO device natively. Plugins are discovered from the
+# devices/ package (see devices/loader.py); config's per-plugin settings and
+# the dormant list gate which are active. This is the full installed pool.
+DEVICE_PLUGINS: list[Type[Device]] = list(discover_plugins().values())
 
 
 class DeviceManager:
@@ -42,9 +38,10 @@ class DeviceManager:
         # Partnership profile (human-editable relational context for skill generation)
         self.partnership_profile: str = ""
 
-        # Optional Colmi ring SQLite override. If empty, the Colmi plugin uses
-        # its ignored local data path (or SYMBIOSYNC_COLMI_DB_PATH if set).
-        self.colmi_db_path: str = ""
+        # Per-plugin config slices, keyed by device_type_name
+        # (e.g. {"colmi": {"db_path": "..."}}). The manager stays
+        # device-agnostic; each plugin reads its own slice via configure().
+        self.plugin_config: dict = {}
 
         # Remembered devices from config (address -> {name, type, enabled})
         self.remembered: dict[str, dict] = {}
@@ -75,32 +72,41 @@ class DeviceManager:
                 # include a BOM; accept it so hand-edited config files still load.
                 data = json.loads(self.config_path.read_text(encoding="utf-8-sig"))
                 self.remembered = data.get("devices", {})
-                self.dormant_plugins = set(data.get("dormant_plugins", []))
+                # Positive activation: a plugin is active only if explicitly listed.
+                # New/unconfigured plugins default to DORMANT. Migrate a legacy
+                # dormant_plugins denylist on first load (active = all - dormant) so
+                # existing setups keep working but newly dropped-in plugins start off.
+                if "active_plugins" in data:
+                    self.active_plugins = set(data.get("active_plugins", []))
+                else:
+                    all_types = {p.device_type_name() for p in DEVICE_PLUGINS}
+                    self.active_plugins = all_types - set(data.get("dormant_plugins", []))
                 self.partnership_profile = data.get("partnership_profile", "")
-                self.colmi_db_path = data.get("colmi_db_path", "")
-                set_colmi_db_path(self.colmi_db_path)
+                self.plugin_config = data.get("plugin_config", {})
+                # Back-compat: fold a legacy top-level colmi_db_path into the generic slice.
+                legacy_db = data.get("colmi_db_path", "")
+                if legacy_db:
+                    self.plugin_config.setdefault("colmi", {}).setdefault("db_path", legacy_db)
+                self._configure_plugins()
                 self.logger.log("CONFIG", f"Loaded {len(self.remembered)} remembered device(s)")
-                if self.colmi_db_path:
-                    self.logger.log("CONFIG", f"Colmi DB path: {self.colmi_db_path}")
-                if self.dormant_plugins:
-                    self.logger.log("CONFIG", f"Dormant plugins: {', '.join(self.dormant_plugins)}")
+                self.logger.log("CONFIG", f"Active plugins: {', '.join(sorted(self.active_plugins)) or '(none — all dormant)'}")
             except Exception as e:
                 self.logger.log("CONFIG", f"Failed to load config: {e}", level="warn")
                 self.remembered = {}
-                self.dormant_plugins = set()
-                self.colmi_db_path = ""
+                self.active_plugins = set()
+                self.plugin_config = {}
         else:
             self.remembered = {}
-            self.dormant_plugins = set()
-            self.colmi_db_path = ""
+            self.active_plugins = set()
+            self.plugin_config = {}
 
     def _save_config(self):
         """Persist remembered devices and dormant plugins to config file."""
         data = {
             "devices": self.remembered,
-            "dormant_plugins": sorted(self.dormant_plugins),
             "partnership_profile": self.partnership_profile,
-            "colmi_db_path": self.colmi_db_path,
+            "plugin_config": self.plugin_config,
+            "active_plugins": sorted(self.active_plugins),
         }
         try:
             self.config_path.parent.mkdir(parents=True, exist_ok=True)
@@ -111,13 +117,25 @@ class DeviceManager:
         except Exception as e:
             self.logger.log("CONFIG", f"Failed to save config: {e}", level="error")
 
+    def _configure_plugins(self):
+        """Hand each discovered plugin its config slice (device-agnostic)."""
+        for plugin_cls in DEVICE_PLUGINS:
+            try:
+                plugin_cls.configure(self.plugin_config.get(plugin_cls.device_type_name(), {}))
+            except Exception as e:
+                self.logger.log(
+                    "CONFIG",
+                    f"configure() failed for {plugin_cls.device_type_name()}: {e}",
+                    level="warn",
+                )
+
     def is_plugin_dormant(self, plugin_type: str) -> bool:
-        """Check if a plugin type is dormant."""
-        return plugin_type in self.dormant_plugins
+        """Dormant = not explicitly activated. New plugins default dormant."""
+        return plugin_type not in self.active_plugins
 
     def get_active_plugins(self) -> list[Type[Device]]:
-        """Return only non-dormant plugins."""
-        return [p for p in DEVICE_PLUGINS if p.device_type_name() not in self.dormant_plugins]
+        """Return only explicitly-activated plugins."""
+        return [p for p in DEVICE_PLUGINS if p.device_type_name() in self.active_plugins]
 
     async def set_plugin_dormant(self, plugin_type: str, dormant: bool):
         """Set a plugin to dormant or active state.
@@ -126,7 +144,7 @@ class DeviceManager:
         When waking: the plugin becomes available for scan/connect again.
         """
         if dormant:
-            self.dormant_plugins.add(plugin_type)
+            self.active_plugins.discard(plugin_type)
             # Disconnect all devices of this type
             to_disconnect = [
                 addr for addr, dev in self.devices.items()
@@ -136,7 +154,7 @@ class DeviceManager:
                 await self.disconnect_device(addr)
             self.logger.log("PLUGIN", f"{plugin_type} -> dormant ({len(to_disconnect)} device(s) disconnected)")
         else:
-            self.dormant_plugins.discard(plugin_type)
+            self.active_plugins.add(plugin_type)
             self.logger.log("PLUGIN", f"{plugin_type} -> active")
         self._save_config()
 
@@ -418,7 +436,7 @@ class DeviceManager:
             # 1. Dropped devices (were in self.devices, now disconnected)
             dropped = [
                 (addr, dev) for addr, dev in self.devices.items()
-                if not dev.connected
+                if not dev.connected and not self.is_plugin_dormant(dev.device_type)
             ]
             dropped_addrs = {addr for addr, _ in dropped}
 
@@ -429,6 +447,8 @@ class DeviceManager:
                 if info.get("enabled", True) and addr not in connected_addrs
                 # Also exclude devices we already have (even if disconnected, they're in dropped)
                 and addr not in self.devices
+                # ...and don't chase remembered devices whose plugin is dormant
+                and not self.is_plugin_dormant(info.get("type", ""))
             }
 
             if not dropped and not remembered_not_connected:
@@ -520,7 +540,7 @@ class DeviceManager:
             "remembered": remembered,
             "connected_count": sum(1 for d in self.devices.values() if d.connected),
             "scanning": self._scanning,
-            "dormant_plugins": sorted(self.dormant_plugins),
+            "dormant_plugins": sorted({p.device_type_name() for p in DEVICE_PLUGINS} - self.active_plugins),
             "last_scan": [
                 {
                     "address": i.address,

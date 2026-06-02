@@ -135,6 +135,17 @@ class Device(ABC):
         """Return the device type string (e.g. 'lovense', 'colmi')."""
         ...
 
+    @classmethod
+    def configure(cls, config: dict) -> None:
+        """Optional: receive this plugin's config slice at load time.
+
+        The manager calls this once per discovered plugin with that plugin's
+        section of the app config (e.g. {"db_path": "..."}). Default is a
+        no-op; plugins that need load-time settings override it. This keeps
+        device-specific configuration OUT of the manager core.
+        """
+        pass
+
     # ------------------------------------------------------------------
     # UI contribution: each plugin provides its own tab
     # ------------------------------------------------------------------

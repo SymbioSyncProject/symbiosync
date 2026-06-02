@@ -966,6 +966,13 @@ class ColmiDevice(Device):
             DeviceCapability.BATTERY,
         ]
 
+    @classmethod
+    def configure(cls, config: dict) -> None:
+        """Read this plugin's config slice (e.g. {"db_path": "..."})."""
+        path = config.get("db_path")
+        if path:
+            set_db_path(path)
+
     def get_status(self) -> dict:
         now = time.time()
         return {

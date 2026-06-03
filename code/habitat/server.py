@@ -30,11 +30,11 @@ _host = "127.0.0.1"
 _port = 8080
 
 # Paths
-_base_dir = Path(__file__).parent.parent  # SymbioSync root
-_static_dir = Path(__file__).parent / "static"
-_config_path = _base_dir / "config.json"
-_log_dir = _base_dir / "logs"
-_data_dir = _base_dir / "data"
+_pkg_dir = Path(__file__).parent          # code/habitat — config, logs, data live alongside the package
+_static_dir = _pkg_dir / "static"
+_config_path = _pkg_dir / "config.json"
+_log_dir = _pkg_dir / "logs"
+_data_dir = _pkg_dir / "data"
 
 # Singletons
 logger: Logger | None = None

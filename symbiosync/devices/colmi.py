@@ -973,6 +973,27 @@ class ColmiDevice(Device):
         if path:
             set_db_path(path)
 
+    @classmethod
+    def config_status(cls) -> list[dict]:
+        """Report the active SQLite path and whether it's usable, for the UI."""
+        p = Path(DB_PATH).expanduser()
+        try:
+            p = p.resolve()
+        except OSError:
+            pass
+        if p.exists():
+            detail = "file present"
+        elif p.parent.exists():
+            detail = "will be created on first connect"
+        else:
+            detail = f"parent directory missing: {p.parent}"
+        return [{
+            "label": "Database",
+            "value": str(p),
+            "ok": p.exists() or p.parent.exists(),
+            "detail": detail,
+        }]
+
     def get_status(self) -> dict:
         now = time.time()
         return {

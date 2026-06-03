@@ -146,6 +146,18 @@ class Device(ABC):
         """
         pass
 
+    @classmethod
+    def config_status(cls) -> list[dict]:
+        """Optional: report this plugin's current configuration for the UI.
+
+        Returns a list of {label, value, ok, detail} dicts describing the
+        plugin's *active* config (e.g. a database path and whether it's
+        usable). The Plugins tab shows these as a status line so the user
+        can see at a glance whether the plugin has what it needs to work.
+        Default: nothing to report (the plugin needs no configuration).
+        """
+        return []
+
     # ------------------------------------------------------------------
     # UI contribution: each plugin provides its own tab
     # ------------------------------------------------------------------

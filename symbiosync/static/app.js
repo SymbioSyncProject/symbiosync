@@ -231,6 +231,10 @@ function renderPluginsList(plugins) {
             <div class="device-info">
                 <div class="device-name">${esc(p.label)}</div>
                 <div class="device-meta">${esc(p.description)}</div>
+                ${(p.config && p.config.length) ? p.config.map(c => `
+                    <div class="device-meta" style="margin-top: 4px;${c.ok ? '' : ' color: var(--accent-warm);'}">
+                        ${c.ok ? '' : '⚠ '}${esc(c.label)}: <span style="opacity: 0.85;">${esc(c.value)}</span>${c.detail ? ` <span style="font-size: 0.75rem; opacity: 0.65;">(${esc(c.detail)})</span>` : ''}
+                    </div>`).join('') : ''}
                 ${p.dormant ? '<div style="font-size: 0.8rem; color: var(--accent-warm); margin-top: 6px;">When you reactivate this plugin, you may need to cycle power on your device and reconnect via the Connect tab.</div>' : ''}
             </div>
             <div class="device-actions">

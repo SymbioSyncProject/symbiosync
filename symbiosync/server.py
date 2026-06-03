@@ -570,6 +570,7 @@ async def api_plugins():
             "type": ptype,
             "label": plugin_cls.tab_label(),
             "description": plugin_cls.tab_description(),
+            "config": plugin_cls.config_status(),
             "html": plugin_cls.control_html(),
             "js": plugin_cls.control_js(),
             "dormant": dormant,

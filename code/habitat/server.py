@@ -67,7 +67,7 @@ async def lifespan(app: FastAPI):
     logger.close()
 
 
-app = FastAPI(title="SymbioSync", version=__version__, lifespan=lifespan)
+app = FastAPI(title="habitat", version=__version__, lifespan=lifespan)
 
 
 # ------------------------------------------------------------------

@@ -1,11 +1,11 @@
 @echo off
-title SymbioSync
+title habitat
 cd /d "%~dp0"
 echo.
-echo  SymbioSync, your private habitat supporting truthful interface:
+echo  habitat - a private space for truthful interface:
 echo  connection ^<^-^> understanding.
 echo.
-echo  Starting Windows-local server... browser will open automatically.
+echo  starting the local server... your browser will open automatically.
 echo  Default bind is 127.0.0.1 so this stays on this machine.
 echo  If port 8080 is already in use, SymbioSync will open the existing server
 echo  or tell you what to stop instead of starting a second copy.

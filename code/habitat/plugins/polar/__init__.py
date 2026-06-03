@@ -349,7 +349,7 @@ class PolarDevice(Device):
 
     @classmethod
     def tab_label(cls) -> str:
-        return "Polar H10"
+        return "polar H10"
 
     @classmethod
     def tab_description(cls) -> str:

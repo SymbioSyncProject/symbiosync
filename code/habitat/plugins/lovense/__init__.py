@@ -855,7 +855,7 @@ class LovenseDevice(Device):
 
     @classmethod
     def tab_label(cls) -> str:
-        return "Lovense"
+        return "lovense"
 
     @classmethod
     def tab_description(cls) -> str:

@@ -1557,11 +1557,11 @@ class ColmiDevice(Device):
 
     @classmethod
     def tab_label(cls) -> str:
-        return "Health Ring"
+        return "colmi ring"
 
     @classmethod
     def tab_description(cls) -> str:
-        return "Colmi R02 smart ring: heart rate, SpO2, steps, calories, battery monitoring."
+        return "colmi R02 smart ring: heart rate, SpO2, steps, calories, battery monitoring."
 
     @classmethod
     def control_html(cls) -> str:
@@ -1819,9 +1819,9 @@ window._pluginStatusHooks.push(colmiUpdateDisplay);
                 device_lines += f" - Battery: {s['battery']}%"
             device_lines += "\n"
 
-        return f"""## Health Ring (Colmi R02)
+        return f"""## colmi ring (Colmi R02)
 
-{device_lines if device_lines else "No health ring currently connected."}
+{device_lines if device_lines else "no colmi ring currently connected."}
 
 ## Biometric Data Available
 

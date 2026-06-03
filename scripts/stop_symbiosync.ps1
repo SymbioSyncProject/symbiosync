@@ -15,7 +15,7 @@ try {
 $processes = Get-CimInstance Win32_Process | Where-Object {
     $_.CommandLine -and
     $_.CommandLine -match '(?i)(^|\\)(py|python)(\.exe)?(\s|$)' -and
-    $_.CommandLine -match '(?i)symbiosync'
+    $_.CommandLine -match '(?i)(habitat|symbiosync)'
 }
 
 if ($Port -eq 8080) {
@@ -29,7 +29,7 @@ if ($Port -eq 8080) {
 }
 
 if (-not $processes) {
-    Write-Host 'No matching SymbioSync Python process found.'
+    Write-Host 'No matching habitat (or legacy symbiosync) process found.'
     exit 0
 }
 

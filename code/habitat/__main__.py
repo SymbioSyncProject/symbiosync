@@ -55,7 +55,7 @@ def _existing_symbiosync_status(url: str, timeout: float = 2.0) -> dict | None:
 def main():
     parser = argparse.ArgumentParser(
         prog="habitat",
-        description="SymbioSync - private habitat supporting truthful interface",
+        description="habitat — a private, local-only space for truthful interface (a SymbioSync project)",
     )
     parser.add_argument(
         "--host", default="0.0.0.0",
@@ -70,14 +70,14 @@ def main():
         help="Don't auto-open browser on startup",
     )
     parser.add_argument(
-        "--version", action="version", version=f"SymbioSync {__version__}",
+        "--version", action="version", version=f"habitat {__version__}",
     )
     args = parser.parse_args()
 
     url = _display_url(args.host, args.port)
 
-    print(f"SymbioSync v{__version__}")
-    print("Private habitat supporting truthful interface:")
+    print(f"habitat v{__version__}")
+    print("a private space for truthful interface:")
     print("connection <-> understanding")
     print()
 
@@ -86,16 +86,16 @@ def main():
         if existing is not None:
             connected_count = len(existing.get("devices") or {})
             remembered_count = len(existing.get("remembered") or {})
-            print(f"Port {args.port} is already in use by a reachable SymbioSync server.")
-            print(f"Opening existing server at {url}")
-            print(f"Current status: {connected_count} connected, {remembered_count} remembered.")
+            print(f"port {args.port} is already in use by a reachable habitat server.")
+            print(f"opening the existing server at {url}")
+            print(f"current status: {connected_count} connected, {remembered_count} remembered.")
             if not args.no_browser:
                 webbrowser.open(url)
             return 0
 
-        print(f"Port {args.port} is already in use, but SymbioSync did not answer at {url}.")
-        print("Another process may be holding the port, or an old SymbioSync process may be wedged.")
-        print("Run stop.bat, close the old server window, or choose another port with --port.")
+        print(f"port {args.port} is already in use, but habitat did not answer at {url}.")
+        print("another process may be holding the port, or an old habitat process may be wedged.")
+        print("run stop.bat, close the old server window, or choose another port with --port.")
         return 1
 
     # Lazy import so --help and already-running checks stay fast and side-effect-light.
@@ -104,8 +104,8 @@ def main():
 
     set_config(host=args.host, port=args.port)
 
-    print(f"Starting on {url}")
-    print(f"Press Ctrl+C to stop\n")
+    print(f"starting on {url}")
+    print("press Ctrl+C to stop\n")
 
     if not args.no_browser:
         threading.Timer(1.5, lambda: webbrowser.open(url)).start()

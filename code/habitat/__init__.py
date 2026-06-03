@@ -1,3 +1,3 @@
-"""SymbioSync - Privacy-first BLE device controller."""
+"""habitat — a private, local-only space for truthful device interface. (a SymbioSync project)"""
 
-__version__ = "0.1.0-alpha"
+__version__ = "0.2.0-alpha"

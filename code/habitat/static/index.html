@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>SymbioSync</title>
+    <title>habitat</title>
     <link rel="stylesheet" href="/static/style.css">
 </head>
 <body>
@@ -12,16 +12,17 @@
 <header class="header">
     <div class="header-row">
         <div class="header-left">
-            <div class="logo"><span class="logo-sym">Symbio</span><span class="logo-sync">Sync</span></div>
+            <div class="logo"><span class="logo-sym">habitat</span></div>
+            <span style="font-size: 0.72rem; color: var(--text-dim); align-self: center; margin-left: 0.3rem;">a SymbioSync project</span>
             <span class="version" id="version">v0.1.0-alpha</span>
         </div>
         <div class="connection-indicator">
             <span id="device-count">0 devices</span>
             <span class="sep">|</span>
             <div class="indicator-dot" id="ws-indicator" title="Server status unknown"></div>
-            <span id="ws-status" title="Server reachability unknown">Checking local server...</span>
+            <span id="ws-status" title="whether habitat is running on this machine and this page can reach it. green = up and listening; red = down, and your devices can't be reached until it's back.">connecting…</span>
             <button class="btn btn-danger btn-small" onclick="restartServer()"
-                title="Restart the local SymbioSync device manager inside the running Python server. This disconnects and reinitializes device sessions and background reconnect tasks, but does not change plugin configuration or remembered devices.">Restart Device Manager</button>
+                title="drops and re-establishes all device connections and the background reconnect tasks. does not restart habitat itself, and does not change your settings or remembered devices.">reconnect devices</button>
         </div>
     </div>
     <nav class="tabs" id="tab-bar">
@@ -266,7 +267,7 @@
 
 <!-- Footer -->
 <footer class="footer">
-    SymbioSync, your private habitat supporting truthful interface: connection ⇆ understanding.
+    habitat — a private space for truthful interface: connection ⇆ understanding. a SymbioSync project.
 </footer>
 
 <script src="/static/app.js"></script>

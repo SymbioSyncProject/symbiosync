@@ -301,6 +301,18 @@ body {
     color: var(--accent-red);
 }
 
+/* Deactivate: a live plugin's "make dormant" action — soft inner amber glow so it reads as a button, warm not alarming */
+.btn-deactivate {
+    background: rgba(251, 191, 36, 0.10);
+    border-color: rgba(251, 191, 36, 0.55);
+    color: var(--accent-amber);
+    box-shadow: inset 0 0 9px rgba(251, 191, 36, 0.22);
+}
+.btn-deactivate:hover {
+    background: rgba(251, 191, 36, 0.18);
+    box-shadow: inset 0 0 12px rgba(251, 191, 36, 0.32);
+}
+
 .btn-danger:hover { background: rgba(248, 113, 113, 0.2); }
 
 .btn-success {

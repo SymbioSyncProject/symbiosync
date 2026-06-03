@@ -63,22 +63,22 @@ async function refreshStatus() {
 function setWSStatus(state) {
     const dot = document.getElementById('ws-indicator');
     const text = document.getElementById('ws-status');
-    const connectedTitle = 'Local server reachable: the browser can reach the local SymbioSync Python server and /api/status is responding. This does not prove Bluetooth delivery or device hardware acknowledgement.';
-    const scanningTitle = 'Local server reachable and a Bluetooth discovery scan was requested. Manual discovery is still experimental; check Logs for scan activity.';
-    const reconnectingTitle = 'Local server not currently reachable: the browser cannot confirm the local SymbioSync Python server is responding. Device/plugin configuration is not implied.';
+    const connectedTitle = 'habitat is running on this machine and this page can reach it. this does not prove bluetooth delivery or that a device physically acted — only that the local app is up and answering.';
+    const scanningTitle = 'habitat is up, and a bluetooth discovery scan was requested. manual discovery is still experimental — check the logs for scan activity.';
+    const reconnectingTitle = 'habitat is not answering on this machine right now. your devices can\'t be reached until it\'s back. (this says nothing about your device config — only that the app is unreachable.)';
     if (state === 'connected') {
         dot.className = 'indicator-dot connected';
-        text.textContent = 'Local server reachable';
+        text.textContent = 'habitat: live';
         dot.title = connectedTitle;
         text.title = connectedTitle;
     } else if (state === 'scanning') {
         dot.className = 'indicator-dot scanning';
-        text.textContent = 'Local server scanning...';
+        text.textContent = 'habitat: scanning…';
         dot.title = scanningTitle;
         text.title = scanningTitle;
     } else {
         dot.className = 'indicator-dot reconnecting';
-        text.textContent = 'Local server unreachable...';
+        text.textContent = 'habitat: not responding';
         dot.title = reconnectingTitle;
         text.title = reconnectingTitle;
     }
@@ -239,12 +239,12 @@ function renderPluginsList(plugins) {
             </div>
             <div class="device-actions">
                 <span class="badge ${p.dormant ? 'badge-dormant' : 'badge-connected'}">
-                    ${p.dormant ? 'Dormant' : 'Active'}
+                    ${p.dormant ? 'dormant' : 'active'}
                 </span>
-                <button class="btn btn-small ${p.dormant ? 'btn-primary' : ''}"
-                    title="${p.dormant ? 'Activate this plugin' : 'Deactivate this plugin (make it go dormant)'}"
+                <button class="btn btn-small ${p.dormant ? 'btn-primary' : 'btn-deactivate'}"
+                    title="${p.dormant ? 'activate this plugin' : 'deactivate this plugin (make it go dormant)'}"
                     onclick="togglePlugin('${esc(p.type)}')">
-                    ${p.dormant ? 'Activate' : 'Deactivate'}
+                    ${p.dormant ? 'activate' : 'deactivate'}
                 </button>
             </div>
         </div>

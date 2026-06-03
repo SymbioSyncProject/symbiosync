@@ -238,9 +238,9 @@ function renderPluginsList(plugins) {
                     ${p.dormant ? 'Dormant' : 'Active'}
                 </span>
                 <button class="btn btn-small ${p.dormant ? 'btn-primary' : ''}"
-                    title="${p.dormant ? 'Click to reactivate this plugin' : 'Click to make this plugin go dormant'}"
+                    title="${p.dormant ? 'Activate this plugin' : 'Deactivate this plugin (make it go dormant)'}"
                     onclick="togglePlugin('${esc(p.type)}')">
-                    ${p.dormant ? 'Wake' : 'Dormant'}
+                    ${p.dormant ? 'Activate' : 'Deactivate'}
                 </button>
             </div>
         </div>

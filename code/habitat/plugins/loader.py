@@ -1,14 +1,14 @@
 """
-Dynamic plugin discovery for SymbioSync.
+Dynamic plugin discovery for habitat.
 
-The core knows about NO device natively. Plugins live as modules under
-`symbiosync/devices/`; each defines one or more `Device` subclasses. This
-loader scans that package, imports each module, and collects the subclasses.
-Config (`enabled_plugins`) then selects which of the discovered plugins are
-active — config is the source of truth for what loads.
+The core knows about NO device natively. Plugins live under the `plugins/`
+package — each as a flat module or its own folder — and each defines one or
+more `Device` subclasses. This loader scans the package, imports each entry,
+and collects the subclasses. Config (`active_plugins`) then selects which of
+the discovered plugins are active — config is the source of truth for what loads.
 
-Adding a device = drop a module in `devices/` (and, if you want it gated,
-name it in config). No edit to the core required.
+Adding a device = drop a module or folder in `plugins/` (and, if you want it
+gated, name it in config). No edit to the core required.
 """
 
 import importlib
@@ -22,20 +22,21 @@ _SKIP = {"base", "loader"}
 
 
 def discover_plugins() -> dict[str, Type[Device]]:
-    """Scan the devices package; return {device_type_name: PluginClass}.
+    """Scan the plugins package; return {device_type_name: PluginClass}.
 
-    Import failures in a single plugin module are swallowed so one broken
-    plugin can't take down discovery of the others.
+    Each entry may be a flat module or its own folder (a subpackage). Import
+    failures in a single plugin are swallowed so one broken plugin can't take
+    down discovery of the others.
     """
     found: dict[str, Type[Device]] = {}
-    import symbiosync.devices as pkg
+    pkg = importlib.import_module(__package__)  # the plugins package this loader lives in
 
     for modinfo in pkgutil.iter_modules(pkg.__path__):
         name = modinfo.name
         if name in _SKIP or name.startswith("_"):
             continue
         try:
-            mod = importlib.import_module(f"symbiosync.devices.{name}")
+            mod = importlib.import_module(f"{__package__}.{name}")
         except Exception:
             continue
         for obj in vars(mod).values():

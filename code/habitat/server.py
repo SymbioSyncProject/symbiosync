@@ -619,7 +619,7 @@ async def api_sleep_journal_write(body: dict):
     Rating scale: 1=terrible, 2=poor, 3=ok, 4=good, 5=excellent
     Upserts — posting twice for the same date updates the entry.
     """
-    from .devices.colmi import _db_sleep_journal_upsert, DB_PATH
+    from .plugins.colmi import _db_sleep_journal_upsert, DB_PATH
     date = body.get("date")
     rating = body.get("rating")
     note = body.get("note", None)
@@ -636,7 +636,7 @@ async def api_sleep_journal_read(date: str = Query(default=""), limit: int = Que
     """Get subjective sleep journal entries.
     Optional ?date=YYYY-MM-DD for a specific night, otherwise returns recent entries.
     """
-    from .devices.colmi import _db_sleep_journal_get, DB_PATH
+    from .plugins.colmi import _db_sleep_journal_get, DB_PATH
     entries = _db_sleep_journal_get(DB_PATH, date or None, limit)
     return {"entries": entries}
 

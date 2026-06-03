@@ -14,13 +14,13 @@ from typing import Type
 
 from bleak import BleakScanner
 
-from .devices.base import Device, DeviceInfo
-from .devices.loader import discover_plugins
+from .plugins.base import Device, DeviceInfo
+from .plugins.loader import discover_plugins
 from .logger import Logger
 
 
 # The core imports NO device natively. Plugins are discovered from the
-# devices/ package (see devices/loader.py); config's per-plugin settings and
+# plugins/ package (see plugins/loader.py); config's per-plugin settings and
 # the dormant list gate which are active. This is the full installed pool.
 DEVICE_PLUGINS: list[Type[Device]] = list(discover_plugins().values())
 

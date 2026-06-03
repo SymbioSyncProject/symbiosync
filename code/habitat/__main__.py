@@ -1,5 +1,5 @@
 """
-SymbioSync - run with: python -m symbiosync
+habitat — run with: python -m habitat
 
 Private habitat supporting truthful interface:
 connection <-> understanding.
@@ -54,7 +54,7 @@ def _existing_symbiosync_status(url: str, timeout: float = 2.0) -> dict | None:
 
 def main():
     parser = argparse.ArgumentParser(
-        prog="symbiosync",
+        prog="habitat",
         description="SymbioSync - private habitat supporting truthful interface",
     )
     parser.add_argument(

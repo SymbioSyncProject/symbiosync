@@ -22,7 +22,7 @@ from pathlib import Path
 
 from bleak import BleakClient
 
-from .base import Device, DeviceCapability, DeviceInfo
+from ..base import Device, DeviceCapability, DeviceInfo
 
 # ---------------------------------------------------------------------------
 # BLE constants (verified from colmi_r02_client + colmi.puxtril.com)

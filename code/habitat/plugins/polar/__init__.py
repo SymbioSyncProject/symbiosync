@@ -34,7 +34,7 @@ from collections import deque
 
 from bleak import BleakClient
 
-from .base import Device, DeviceCapability, DeviceInfo
+from ..base import Device, DeviceCapability, DeviceInfo
 
 # ---------------------------------------------------------------------------
 # BLE constants

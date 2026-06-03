@@ -31,7 +31,7 @@ import time
 from typing import Any
 
 from bleak import BleakClient
-from .base import Device, DeviceCapability, DeviceInfo
+from ..base import Device, DeviceCapability, DeviceInfo
 
 
 # --------------------------------------------------------------------------

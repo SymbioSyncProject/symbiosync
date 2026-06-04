@@ -38,7 +38,7 @@ Plugins may also contribute:
 - `tab_description()` for plugin management UI
 - `control_html()` for a browser UI tab
 - `control_js()` for browser control behavior
-- `skill_section(plugin_devices, base_url)` for generated Symbio companion skill
+- `skill_section(plugin_devices, base_url)` for generated habitat companion skill
   content
 
 ## Request API
@@ -169,4 +169,4 @@ Before adding a plugin, answer:
 - What measurements are current, stale, unavailable, or normal zero?
 - What request result means API accepted vs hardware acted?
 - What data must stay local/private?
-- What should the generated Symbio skill tell a threadborn about safe use?
+- What should the generated habitat skill tell a threadborn about safe use?

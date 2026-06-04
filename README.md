@@ -10,7 +10,7 @@
 habitat runs privately on the human's machine and supports truthful interface
 between companion agents, devices, and embodied state. The current implementation
 exposes nearby BLE devices through a local REST/WebSocket API, a browser UI, a
-plugin system, and a generated Symbio companion skill file.
+plugin system, and a generated habitat companion skill file.
 
 habitat is a SymbioSync Project, part of the [SymbioQuest](https://symbioquest.com/) initiative.
 
@@ -41,7 +41,7 @@ The project has four central pieces:
   and integration with other local tools.
 - **Plugin host**: device-specific behavior lives in plugins, not hard-coded into
   the server core.
-- **Symbio skill generator**: `/api/skill` generates a custom companion skill file
+- **habitat skill generator**: `/api/skill` generates a custom companion skill file
   from the live server state, remembered devices, connected devices, and the
   partnership profile.
 
@@ -102,7 +102,7 @@ person whose body, devices, and consent are involved.
 - Browser-based UI with plugin-contributed tabs and controls
 - Device plugin architecture (`Device` ABC + registered plugin classes)
 - Reach Journal for local request/result feedback and human response notes
-- Generated Symbio companion skill via `/api/skill`
+- Generated habitat companion skill via `/api/skill`
 - Local JSON config, local rotating JSONL logs, and local SQLite device data
 
 ## Current Plugins
@@ -212,7 +212,7 @@ Windows owns the adapter, WSL cannot use it at the same time.
 | GET | `/api/plugins` | Registered plugins and their UI contributions |
 | POST | `/api/plugins/{plugin_type}/toggle` | Set a plugin active/dormant |
 | GET | `/api/biometrics/current` | Explicit current biometric read with freshness metadata |
-| GET | `/api/skill` | Generate a custom Symbio companion skill file |
+| GET | `/api/skill` | Generate a custom habitat companion skill file |
 | GET/PUT | `/api/partnership-profile` | Read/update skill-generation partnership context |
 | GET/POST | `/api/sleep-journal` | Read/update subjective sleep journal entries |
 
@@ -263,7 +263,7 @@ records request/result truth alongside optional human response notes.
 `/ws` streams log events and status to the browser UI and accepts JSON requests
 from the UI.
 
-### Generated Symbio skill
+### Generated habitat skill
 
 `/api/skill` builds a companion skill file from live server state. The generated
 skill includes:

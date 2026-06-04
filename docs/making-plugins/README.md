@@ -1,6 +1,6 @@
-﻿# SymbioSync plugins
+﻿# habitat plugins
 
-SymbioSync is a plugin host. The server core handles local API, WebSocket, UI
+habitat is a plugin host. The server core handles local API, WebSocket, UI
 serving, config, logging, lifecycle, and dispatch. Device-specific behavior
 lives in plugins.
 

@@ -1,6 +1,6 @@
 ﻿# Make your own plugin
 
-SymbioSync is a plugin host. New device types should add device-specific code in
+habitat is a plugin host. New device types should add device-specific code in
 a plugin while keeping the server core honest and boring.
 
 This page documents the current plugin contract and the direction for future
@@ -8,7 +8,7 @@ sensor/actuator extensibility.
 
 ## Current Python contract
 
-A plugin is a subclass of `symbiosync.devices.base.Device`.
+A plugin is a subclass of `Device` (from `habitat.plugins.base`).
 
 Required behavior:
 
@@ -21,15 +21,11 @@ Required behavior:
 - `scan_filter(name: str, address: str) -> bool`
 - `device_type_name() -> str`
 
-Register the plugin in `symbiosync/manager.py`:
-
-```python
-DEVICE_PLUGINS = [
-    LovenseDevice,
-    ColmiDevice,
-    YourDevice,
-]
-```
+Drop the plugin in its own folder under `code/habitat/plugins/` (one folder per
+plugin, e.g. `code/habitat/plugins/yourdevice/`). The loader discovers it
+automatically by scanning that folder — **no manual registration**. A newly
+dropped plugin starts dormant; activate it from the Plugins tab or via
+`active_plugins` in config.
 
 The manager handles scanning, remembered devices, connection lifecycle,
 reconnect loops, request dispatch, and status aggregation.

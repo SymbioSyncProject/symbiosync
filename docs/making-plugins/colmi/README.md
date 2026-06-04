@@ -1,6 +1,6 @@
 # Colmi ring plugin
 
-The Colmi plugin is SymbioSync's active biometric-adjacent ring/sensor plugin.
+The Colmi plugin is habitat's active biometric-adjacent ring/sensor plugin.
 It targets QRing/Colmi-style smart rings and stores local data in SQLite.
 
 This plugin is useful now, but still in active hardening around BLE reliability,

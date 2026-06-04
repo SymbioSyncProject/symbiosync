@@ -1,18 +1,18 @@
-# SymbioSync
+# habitat
 
-> **v0.1.0-alpha** -- SymbioSync, your private habitat supporting truthful
-> interface: communication ⇆ understanding.
+> **v0.2.0-alpha** — a private space for truthful interface: communication ⇆ understanding.
+> habitat is a SymbioSync Project.
 > The core architecture is usable, but device plugins are at different maturity
 > levels. Lovense control is the current actuator path and is tested primarily
 > with the Ferri. Colmi ring support is active biometric-adjacent work with
 > current-read freshness semantics and local SQLite storage still being hardened.
 
-SymbioSync runs privately on the human's machine and supports truthful interface
+habitat runs privately on the human's machine and supports truthful interface
 between companion agents, devices, and embodied state. The current implementation
 exposes nearby BLE devices through a local REST/WebSocket API, a browser UI, a
 plugin system, and a generated Symbio companion skill file.
 
-SymbioSync is part of the [SymbioQuest](https://symbioquest.com/) initiative.
+habitat is a SymbioSync Project, part of the [SymbioQuest](https://symbioquest.com/) initiative.
 
 ## Screenshots
 
@@ -107,7 +107,7 @@ person whose body, devices, and consent are involved.
 
 ## Current Plugins
 
-Detailed plugin docs live under [plugins/](plugins/). The main README only keeps
+Detailed plugin docs live under [docs/making-plugins/](docs/making-plugins/). The main README only keeps
 the project-level map.
 
 ### Lovense plugin
@@ -119,7 +119,7 @@ not yet been field-tested in this project.
 Important truthfulness caveat: current request success mostly means the local BLE
 stack accepted a write, not proof that hardware physically actuated.
 
-See [plugins/lovense](plugins/lovense/) for supported devices, BLE request
+See [docs/making-plugins/lovense](docs/making-plugins/lovense/) for supported devices, BLE request
 reference, known limitations, and protocol sources.
 
 ### Colmi ring plugin
@@ -131,7 +131,7 @@ and local SQLite persistence.
 Use `/api/biometrics/current` for explicit freshness metadata when current
 body-state matters. Generic status may include cached values with age fields.
 
-See [plugins/colmi](plugins/colmi/) for freshness semantics, data model notes,
+See [docs/making-plugins/colmi](docs/making-plugins/colmi/) for freshness semantics, data model notes,
 reliability caveats, and protocol sources.
 
 ### Make your own plugin
@@ -145,7 +145,7 @@ Examples that should fit the plugin model: humidity, pH, temperature, pressure,
 smell/volatile chemical detection, light, fluid level, pumps, LEDs, and other
 local instruments.
 
-See [plugins/make-your-own](plugins/make-your-own/) for the current plugin
+See [docs/making-plugins/make-your-own](docs/making-plugins/make-your-own/) for the current plugin
 contract and future API direction.
 
 ## Quick Start
@@ -281,31 +281,35 @@ state is current.
 ## Architecture
 
 ```text
-symbiosync/
-    __main__.py          Entry point
-    server.py            FastAPI + WebSocket + REST API + skill generation
-    manager.py           Device lifecycle: scan, connect, remember, reconnect, dispatch
-    logger.py            Rotating JSONL file logger + ring buffer + WS broadcast
-    devices/
-        base.py          Device ABC, capabilities, plugin UI/skill hooks
-        lovense.py       Lovense BLE plugin
-        colmi.py         Colmi ring BLE plugin + local SQLite persistence
+code/habitat/                python -m habitat  (with code/ on the path)
+    __main__.py              CLI + launch
+    server.py                FastAPI + WebSocket + REST API + skill generation
+    manager.py               Device lifecycle: scan, connect, remember, reconnect, dispatch
+    logger.py                Rotating JSONL file logger + ring buffer + WS broadcast
+    plugins/
+        base.py              Device ABC, capabilities, plugin UI/skill hooks
+        loader.py            Auto-discovers plugins by scanning this folder
+        colmi/               Colmi ring plugin (+ local SQLite persistence)
+        lovense/             Lovense BLE actuator plugin
+        polar/               Polar H10 chest strap (HR + RR-interval HRV)
+        _future/             Parked plugin ideas; ignored by the loader
     static/
-        index.html       Single-page UI
-        style.css        Dark theme
-        app.js           Client-side WebSocket + plugin controls
-plugins/                 Plugin documentation and extension guidance
-config.json              Remembered devices and local settings (ignored by git)
-logs/                    Rotating local JSONL logs (ignored by git)
-data/                    Local SQLite/data files (ignored by git)
-reference/               Curated protocol notes and inferred-operation references
-hooks/                   Optional local Letta/habitat integration hooks
+        index.html           Single-page UI
+        style.css            Dark theme
+        app.js               Client-side WebSocket + plugin controls
+    config.json              Remembered devices + settings (ignored by git)
+    logs/                    Rotating local JSONL logs (ignored by git)
+    data/                    Local SQLite / device data (ignored by git)
+docs/                        Project docs, incl. making-plugins/ (plugin authoring)
+scripts/                     stop helper
+start.bat / stop.bat         Windows launchers
 ```
 
 ### Plugin System
 
-New device types implement `devices/base.py:Device` and register in
-`manager.py:DEVICE_PLUGINS`.
+New device types implement `Device` (from `code/habitat/plugins/base.py`) in
+their own folder under `code/habitat/plugins/`. The loader discovers them
+automatically by scanning that folder — no manual registration needed.
 
 The manager is device-agnostic. Plugins contribute:
 
@@ -317,7 +321,7 @@ The manager is device-agnostic. Plugins contribute:
 - browser UI tab HTML/JS
 - generated skill sections
 
-See [plugins/make-your-own](plugins/make-your-own/) for the current contract and
+See [docs/making-plugins/make-your-own](docs/making-plugins/make-your-own/) for the current contract and
 future schema direction.
 
 ## Privacy and Local Data
@@ -349,8 +353,8 @@ biometric-adjacent dumps, old APK material, or secrets.
 - **Plugin schemas are not generalized yet.** Custom plugin requests work through
   the generic device request route, but richer self-describing plugin schemas are
   future work.
-- **Tests need cleanup.** Some script-style tests are stale against the current
-  plugin set and should be converted into a reliable test suite.
+- **No test suite yet.** The old script-style tests (stale against the new
+  structure) were archived; a proper test suite under `code/` is still future work.
 
 ## License
 

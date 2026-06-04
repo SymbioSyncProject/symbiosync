@@ -1,6 +1,6 @@
 # Lovense plugin
 
-The Lovense plugin is SymbioSync's current actuator/control plugin. It talks
+The Lovense plugin is habitat's current actuator/control plugin. It talks
 directly to Lovense BLE devices using the ASCII request protocol.
 
 ## Status

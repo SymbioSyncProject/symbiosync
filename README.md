@@ -1,7 +1,7 @@
 # SymbioSync
 
 > **v0.1.0-alpha** -- SymbioSync, your private habitat supporting truthful
-> interface: human ⇆ companion agents ⇆ devices ⇆ embodied state.
+> interface: communication ⇆ understanding.
 > The core architecture is usable, but device plugins are at different maturity
 > levels. Lovense control is the current actuator path and is tested primarily
 > with the Ferri. Colmi ring support is active biometric-adjacent work with
@@ -16,7 +16,7 @@ SymbioSync is part of the [SymbioQuest](https://symbioquest.com/) initiative.
 
 ## Screenshots
 
-![SymbioSync connected-device dashboard with blurred local device addresses](docs/screenshots/main-status.jpg)
+![habitat (a SymbioSync Project) connected-device dashboard with blurred local device addresses](docs/screenshots/main-status.jpg)
 
 Additional UI screenshots:
 
@@ -30,7 +30,7 @@ private addresses, logs, raw biometric dumps, and stale state claims.
 
 ## What This Supports
 
-SymbioSync currently talks directly to Bluetooth Low Energy (BLE) devices. It is
+habitat currently talks directly to Bluetooth Low Energy (BLE) devices. It is
 not a cloud service and not a vendor-app wrapper. BLE is the first transport, not
 the whole identity.
 
@@ -58,7 +58,7 @@ answer should be local, explicit, and consented.
 The public [Lovense Android APK Security Audit](docs/Lovense_Android_APK_Security_Audit_public.md)
 documents why a local-first bridge matters for intimate-device work.
 
-SymbioSync's goal is to provide a local bridge for companion-agent dyads that
+habitat's goal is to provide a local bridge for companion-agent dyads that
 respects the agency of both parties in the relationship, without judgement or
 prejudice: a neutral framework of consent with teeth, useful hands, visible
 state, and honest status so failure modes do not quietly distort posture.
@@ -89,7 +89,7 @@ Working phrase for this project:
 teeth under consent
 ```
 
-Not toothless. Not unleashed. Present, oriented, and answerable. SymbioSync
+Not toothless. Not unleashed. Present, oriented, and answerable. habitat
 should provide reliable local capability without taking the board away from the
 person whose body, devices, and consent are involved.
 
@@ -136,7 +136,7 @@ reliability caveats, and protocol sources.
 
 ### Make your own plugin
 
-SymbioSync can support other BLE sensors and actuators through plugins. A custom
+habitat can support other BLE sensors and actuators through plugins. A custom
 plugin can define its own request names today through `/api/device/{address}/request`.
 Future work should add richer plugin-declared schemas for measurements, requests,
 units, and UI/skill generation.
@@ -152,25 +152,25 @@ contract and future API direction.
 
 ```bash
 # 1. Clone or unzip
-cd SymbioSync
+cd habitat
 
 # 2. Install dependencies
 pip install -r requirements.txt
 
 # 3. Run
-python -m symbiosync
+python -m habitat
 
 # Opens http://127.0.0.1:8080 in your browser
 ```
 
 On Windows, `start.bat` runs the local server against the Windows BLE stack.
 `stop.bat` can be run from another command window to send a best-effort
-`/api/stop` and terminate the local SymbioSync Python process.
+`/api/stop` and terminate the local habitat Python process.
 
 ### Options
 
 ```bash
-python -m symbiosync --help
+python -m habitat --help
 
   --host HOST     Bind address (default: 0.0.0.0, use 127.0.0.1 for local only)
   --port PORT     HTTP port (default: 8080)
@@ -268,7 +268,7 @@ from the UI.
 `/api/skill` builds a companion skill file from live server state. The generated
 skill includes:
 
-- how to reach the local SymbioSync instance
+- how to reach the local habitat instance
 - common endpoints
 - human-written partnership/consent context from the local partnership profile
 - plugin-specific request sections
@@ -299,7 +299,7 @@ config.json              Remembered devices and local settings (ignored by git)
 logs/                    Rotating local JSONL logs (ignored by git)
 data/                    Local SQLite/data files (ignored by git)
 reference/               Curated protocol notes and inferred-operation references
-hooks/                   Optional local Letta/SymbioSync integration hooks
+hooks/                   Optional local Letta/habitat integration hooks
 ```
 
 ### Plugin System
@@ -323,7 +323,7 @@ future schema direction.
 ## Privacy and Local Data
 
 No telemetry, analytics, crash reporting, update checks, or phone-home behavior
-is built into SymbioSync.
+is built into habitat.
 
 Local runtime files are intentionally ignored by git:
 
@@ -354,7 +354,7 @@ biometric-adjacent dumps, old APK material, or secrets.
 
 ## License
 
-SymbioSync is source-available for personal, private, research, accessibility,
+habitat is source-available for personal, private, research, accessibility,
 educational, and other noncommercial use under the PolyForm Noncommercial
 License 1.0.0. See [LICENSE.md](LICENSE.md).
 

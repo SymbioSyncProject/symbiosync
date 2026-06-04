@@ -68,10 +68,10 @@ SPO2_REFRESH       = 600.0     # re-read hourly SpO2 via the safe BigData path e
 HISTORY_SYNC_INTERVAL = 30 * 60.0  # sync history every 30 min
 BACKFILL_DAYS      = 7
 
-# DB path -- defaults to the ignored local data directory.
-# Local installs can override this with config.json (`colmi_db_path`) or the
-# SYMBIOSYNC_COLMI_DB_PATH environment variable.
-DEFAULT_DB_PATH = str(Path("data/ring_data.sqlite"))
+# DB path -- defaults to data/ alongside the habitat package, resolved from THIS
+# file so it survives folder renames and drive moves (no absolute paths to break).
+# Override via config.json (plugin_config.colmi.db_path) or SYMBIOSYNC_COLMI_DB_PATH.
+DEFAULT_DB_PATH = str(Path(__file__).resolve().parent.parent.parent / "data" / "ring_data.sqlite")
 DB_PATH = os.environ.get("SYMBIOSYNC_COLMI_DB_PATH", DEFAULT_DB_PATH)
 
 
